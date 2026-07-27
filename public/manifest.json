@@ -1,0 +1,22 @@
+{
+  "short_name": "FaithPath AI",
+  "name": "FaithPath AI - Bible Study & Daily Prayer",
+  "icons": [
+    {
+      "src": "https://images.unsplash.com/photo-1507692049790-de58290a4334?auto=format&fit=crop&q=80&w=192",
+      "type": "image/png",
+      "sizes": "192x192"
+    },
+    {
+      "src": "https://images.unsplash.com/photo-1507692049790-de58290a4334?auto=format&fit=crop&q=80&w=512",
+      "type": "image/png",
+      "sizes": "512x512"
+    }
+  ],
+  "start_url": "/",
+  "background_color": "#1E3A8A",
+  "theme_color": "#1E3A8A",
+  "display": "standalone",
+  "orientation": "portrait",
+  "description": "Grow closer to God every day with AI scripture insights, daily devotionals, Bible study plans, and prayer journaling."
+}

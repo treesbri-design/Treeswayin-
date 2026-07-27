@@ -1,0 +1,8 @@
+{
+  "name": "FaithPath AI",
+  "description": "A modern Christian mobile application for Bible study, AI prayer guidance, prayer journaling, and daily devotionals.",
+  "requestFramePermissions": [
+    "microphone"
+  ],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
