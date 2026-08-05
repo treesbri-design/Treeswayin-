@@ -36,7 +36,7 @@ export const Header: React.FC<HeaderProps> = ({
         </div>
       )}
 
-      <div className="max-w-md mx-auto px-4 py-3 flex items-center justify-between">
+      <div className={`mx-auto px-3 sm:px-4 py-2.5 sm:py-3 flex items-center justify-between ${isPhoneFrame ? 'max-w-md' : 'max-w-3xl'}`}>
         {/* Brand logo & tagline */}
         <div 
           className="flex items-center gap-2.5 cursor-pointer"

@@ -94,6 +94,72 @@ class OfflineStorageService {
   }
 
   /**
+   * Check if a chapter is downloaded and stored in localStorage
+   */
+  public isChapterDownloaded(bookName: string, chapter: number): boolean {
+    const key = this.getChapterKey(bookName, chapter);
+    return Boolean(this.bibleCache[key]);
+  }
+
+  /**
+   * Explicitly download a single chapter into localStorage
+   */
+  public downloadChapterOffline(bookName: string, chapter: number): { versesCount: number } {
+    const verses = getVersesForChapter(bookName, chapter);
+    this.cacheChapter(bookName, chapter, verses);
+    return { versesCount: verses.length };
+  }
+
+  /**
+   * Remove a chapter from local offline storage
+   */
+  public removeDownloadedChapter(bookName: string, chapter: number): void {
+    const key = this.getChapterKey(bookName, chapter);
+    delete this.bibleCache[key];
+    setStorageItem(STORAGE_KEYS.BIBLE_CHAPTERS, this.bibleCache);
+  }
+
+  /**
+   * Download an entire book (all chapters) into localStorage for offline access
+   */
+  public downloadFullBookOffline(bookName: string, totalChapters: number): { chaptersDownloaded: number } {
+    let count = 0;
+    const chaptersToDownload = Math.min(totalChapters || 10, 150); // limit safety
+    for (let ch = 1; ch <= chaptersToDownload; ch++) {
+      const verses = getVersesForChapter(bookName, ch);
+      const key = this.getChapterKey(bookName, ch);
+      this.bibleCache[key] = {
+        bookName,
+        chapter: ch,
+        verses,
+        cachedAt: Date.now()
+      };
+      count++;
+    }
+    setStorageItem(STORAGE_KEYS.BIBLE_CHAPTERS, this.bibleCache);
+    return { chaptersDownloaded: count };
+  }
+
+  /**
+   * Check if an entire book is fully downloaded
+   */
+  public isBookDownloaded(bookName: string, totalChapters: number): boolean {
+    const chaptersToCheck = Math.min(totalChapters || 10, 150);
+    for (let ch = 1; ch <= chaptersToCheck; ch++) {
+      const key = this.getChapterKey(bookName, ch);
+      if (!this.bibleCache[key]) return false;
+    }
+    return true;
+  }
+
+  /**
+   * Retrieve list of all explicitly cached chapters
+   */
+  public getDownloadedChaptersList(): CachedChapter[] {
+    return Object.values(this.bibleCache);
+  }
+
+  /**
    * Retrieve cached chapter or fallback generator
    */
   public getChapter(bookName: string, chapter: number): { number: number; text: string }[] {

@@ -172,6 +172,46 @@ export function generateVerseCardCanvas(
 }
 
 /**
+ * Attempt native sharing of generated verse image file via Web Share API
+ */
+export async function shareVerseCardImage(
+  verseText: string,
+  reference: string,
+  theme: CardTheme
+): Promise<boolean> {
+  try {
+    const canvas = generateVerseCardCanvas(verseText, reference, theme);
+    return new Promise((resolve) => {
+      canvas.toBlob(async (blob) => {
+        if (!blob) {
+          resolve(false);
+          return;
+        }
+        const cleanFilename = `FaithPath_Verse_${reference.replace(/[^a-zA-Z0-9]/g, '_')}.png`;
+        const file = new File([blob], cleanFilename, { type: 'image/png' });
+
+        if (navigator.canShare && navigator.canShare({ files: [file] })) {
+          try {
+            await navigator.share({
+              files: [file],
+              title: reference,
+              text: `"${verseText}" — ${reference}`
+            });
+            resolve(true);
+            return;
+          } catch (e) {
+            // Native share dismissed or error
+          }
+        }
+        resolve(false);
+      }, 'image/png');
+    });
+  } catch (e) {
+    return false;
+  }
+}
+
+/**
  * Trigger immediate browser file download of the card as PNG
  */
 export function downloadVerseCardImage(

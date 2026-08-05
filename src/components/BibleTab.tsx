@@ -16,12 +16,20 @@ import {
   X,
   Palette,
   Download,
-  Image as ImageIcon
+  Image as ImageIcon,
+  BrainCircuit,
+  HardDriveDownload,
+  CheckCircle2,
+  FolderDown,
+  ArrowDownToLine,
+  WifiOff
 } from 'lucide-react';
 import { BibleBook, BibleTranslation, SavedVerse, VerseHighlight } from '../types';
 import { POPULAR_BIBLE_BOOKS, ALL_BIBLE_BOOKS_NAMES, getVersesForChapter } from '../data/bibleData';
 import { offlineStorage } from '../services/offlineStorageService';
-import { CARD_THEMES, downloadVerseCardImage, CardTheme } from '../utils/cardGenerator';
+import { CARD_THEMES, downloadVerseCardImage, shareVerseCardImage, CardTheme } from '../utils/cardGenerator';
+import { BibleQuizModal } from './BibleQuizModal';
+import { OfflineBibleModal } from './OfflineBibleModal';
 
 interface BibleTabProps {
   onSaveVerse: (verse: { bookName: string; chapter: number; verse: number; text: string }) => void;
@@ -52,6 +60,86 @@ export const BibleTab: React.FC<BibleTabProps> = ({
   const [copiedVerseNum, setCopiedVerseNum] = useState<number | null>(null);
   const [shareModalVerse, setShareModalVerse] = useState<{ number: number; text: string } | null>(null);
   const [selectedCardTheme, setSelectedCardTheme] = useState<CardTheme>(CARD_THEMES[0]);
+  const [isQuizOpen, setIsQuizOpen] = useState<boolean>(false);
+  const [isOfflineModalOpen, setIsOfflineModalOpen] = useState<boolean>(false);
+  const [offlineSyncToken, setOfflineSyncToken] = useState<number>(0);
+  const [shareToastMessage, setShareToastMessage] = useState<string | null>(null);
+
+  const triggerToast = (msg: string) => {
+    setShareToastMessage(msg);
+    setTimeout(() => setShareToastMessage(null), 3000);
+  };
+
+  const isCurrentChapterDownloaded = useMemo(() => {
+    // depend on offlineSyncToken to force update
+    return offlineStorage.isChapterDownloaded(selectedBook, selectedChapter);
+  }, [selectedBook, selectedChapter, offlineSyncToken]);
+
+  const handleDownloadCurrentChapter = () => {
+    const res = offlineStorage.downloadChapterOffline(selectedBook, selectedChapter);
+    setOfflineSyncToken(prev => prev + 1);
+    triggerToast(`Downloaded ${selectedBook} Chapter ${selectedChapter} (${res.versesCount} verses) for offline reading! 📥`);
+  };
+
+  const handleDownloadCurrentBook = () => {
+    const chapterCount = currentBookMeta?.chapterCount || 28;
+    const res = offlineStorage.downloadFullBookOffline(selectedBook, chapterCount);
+    setOfflineSyncToken(prev => prev + 1);
+    triggerToast(`Saved all ${res.chaptersDownloaded} chapters of ${selectedBook} to local storage! 📱`);
+  };
+
+  // Web Share API text helper
+  const handleNativeShareText = async (
+    verseText: string,
+    bookName: string,
+    chapterNum: number,
+    verseNum: number
+  ) => {
+    const refText = `${bookName} ${chapterNum}:${verseNum} (${preferredTranslation})`;
+    const shareText = `"${verseText}" — ${refText}`;
+    
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: refText,
+          text: shareText,
+          url: window.location.href
+        });
+        triggerToast('Verse shared successfully!');
+        return;
+      } catch (err: any) {
+        if (err.name === 'AbortError') return; // User cancelled share
+      }
+    }
+
+    // Fallback to clipboard if share unavailable or failed
+    try {
+      await navigator.clipboard.writeText(shareText);
+      triggerToast('Verse copied to clipboard for sharing!');
+    } catch {
+      triggerToast('Verse text copied!');
+    }
+  };
+
+  // Web Share API image card helper
+  const handleNativeShareImageCard = async () => {
+    if (!shareModalVerse) return;
+    const refText = `${selectedBook} ${selectedChapter}:${shareModalVerse.number} (${preferredTranslation})`;
+    
+    const sharedSuccessfully = await shareVerseCardImage(
+      shareModalVerse.text,
+      refText,
+      selectedCardTheme
+    );
+
+    if (sharedSuccessfully) {
+      triggerToast('Verse image card shared!');
+    } else {
+      // Fallback: download card image
+      downloadVerseCardImage(shareModalVerse.text, refText, selectedCardTheme);
+      triggerToast('Card downloaded! Use this file to share on social media.');
+    }
+  };
 
   // Verse lookup with offline cache integration
   const currentVerses = useMemo(() => {
@@ -133,7 +221,15 @@ export const BibleTab: React.FC<BibleTabProps> = ({
   };
 
   return (
-    <div className="space-y-4 pb-24 animate-fadeIn">
+    <div className="space-y-4 pb-24 animate-fadeIn relative">
+      {/* Toast Feedback Notification */}
+      {shareToastMessage && (
+        <div className="fixed top-20 left-1/2 -translate-x-1/2 z-50 bg-slate-900 text-white text-xs font-bold px-4 py-2.5 rounded-2xl shadow-xl border border-slate-700 flex items-center gap-2 animate-bounce">
+          <Share2 className="w-4 h-4 text-amber-400" />
+          <span>{shareToastMessage}</span>
+        </div>
+      )}
+
       {/* Top Bible Controls & Search Bar */}
       <div className="bg-white rounded-[28px] sm:rounded-[32px] p-5 shadow-lg shadow-slate-200/50 border border-slate-100 space-y-3">
         {/* Search Input */}
@@ -200,6 +296,16 @@ export const BibleTab: React.FC<BibleTabProps> = ({
                 </button>
               ))}
             </div>
+
+            {/* Offline Storage Manager Button */}
+            <button
+              onClick={() => setIsOfflineModalOpen(true)}
+              className="py-1.5 px-3 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors"
+              title="Manage Offline Bible Storage"
+            >
+              <HardDriveDownload className="w-3.5 h-3.5 text-amber-600" />
+              <span>Offline Bible</span>
+            </button>
           </div>
         )}
       </div>
@@ -237,20 +343,54 @@ export const BibleTab: React.FC<BibleTabProps> = ({
               {searchResults.map((res, idx) => (
                 <div
                   key={idx}
-                  onClick={() => {
-                    setSelectedBook(res.bookName);
-                    setSelectedChapter(res.chapter);
-                    setSearchQuery('');
-                  }}
-                  className="bg-white rounded-2xl p-4 border border-slate-100 hover:border-blue-300 cursor-pointer shadow-xs space-y-1 transition-all"
+                  className="bg-white rounded-2xl p-4 border border-slate-100 hover:border-blue-300 shadow-xs space-y-2 transition-all group"
                 >
                   <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold text-[#1E3A8A]">
+                    <button
+                      onClick={() => {
+                        setSelectedBook(res.bookName);
+                        setSelectedChapter(res.chapter);
+                        setSearchQuery('');
+                      }}
+                      className="text-xs font-bold text-[#1E3A8A] hover:underline text-left"
+                    >
                       {res.bookName} {res.chapter}:{res.verseNumber} ({preferredTranslation})
-                    </span>
-                    <span className="text-[10px] text-slate-400">Tap to read chapter</span>
+                    </button>
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleNativeShareText(res.text, res.bookName, res.chapter, res.verseNumber);
+                        }}
+                        className="px-2 py-1 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200 rounded-lg text-[10px] font-bold flex items-center gap-1 transition-colors"
+                        title="Share via Native Share Sheet"
+                      >
+                        <Share2 className="w-3 h-3 text-amber-600" />
+                        Share
+                      </button>
+                      <button
+                        onClick={() => {
+                          setSelectedBook(res.bookName);
+                          setSelectedChapter(res.chapter);
+                          setSearchQuery('');
+                        }}
+                        className="text-[10px] text-slate-400 hover:text-slate-600 font-medium"
+                      >
+                        Read Chapter →
+                      </button>
+                    </div>
                   </div>
-                  <p className="text-xs font-serif text-slate-800 italic">"{res.text}"</p>
+                  <p 
+                    onClick={() => {
+                      setSelectedBook(res.bookName);
+                      setSelectedChapter(res.chapter);
+                      setSearchQuery('');
+                    }}
+                    className="text-xs font-serif text-slate-800 italic cursor-pointer"
+                  >
+                    "{res.text}"
+                  </p>
                 </div>
               ))}
             </div>
@@ -286,18 +426,53 @@ export const BibleTab: React.FC<BibleTabProps> = ({
               </button>
             </div>
 
-            {/* Audio Reader Toggle */}
-            <button
-              onClick={handleToggleAudio}
-              className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-2xl text-xs font-bold transition-all ${
-                isReadingAudio
-                  ? 'bg-amber-500 text-white shadow-sm animate-pulse'
-                  : 'bg-blue-50 text-[#1E3A8A] hover:bg-blue-100'
-              }`}
-            >
-              {isReadingAudio ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
-              {isReadingAudio ? 'Stop Audio' : 'Listen'}
-            </button>
+            <div className="flex items-center gap-2 flex-wrap justify-end">
+              {/* Download Chapter Action */}
+              <button
+                type="button"
+                onClick={handleDownloadCurrentChapter}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-2xl text-xs font-black transition-all active:scale-95 ${
+                  isCurrentChapterDownloaded
+                    ? 'bg-emerald-100 text-emerald-900 border border-emerald-300'
+                    : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-900 border border-emerald-200'
+                }`}
+                title="Store chapter in localStorage for offline reading"
+              >
+                {isCurrentChapterDownloaded ? (
+                  <>
+                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                    <span>Downloaded ✓</span>
+                  </>
+                ) : (
+                  <>
+                    <ArrowDownToLine className="w-3.5 h-3.5 text-emerald-700" />
+                    <span>Download Ch. {selectedChapter}</span>
+                  </>
+                )}
+              </button>
+
+              {/* Bible Quiz Toggle */}
+              <button
+                onClick={() => setIsQuizOpen(true)}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-amber-400 to-yellow-500 hover:from-amber-500 hover:to-yellow-600 text-[#1E3A8A] font-black text-xs rounded-2xl shadow-xs transition-all active:scale-95"
+              >
+                <BrainCircuit className="w-4 h-4 text-[#1E3A8A]" />
+                Take Quiz
+              </button>
+
+              {/* Audio Reader Toggle */}
+              <button
+                onClick={handleToggleAudio}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-2xl text-xs font-bold transition-all ${
+                  isReadingAudio
+                    ? 'bg-amber-500 text-white shadow-sm animate-pulse'
+                    : 'bg-blue-50 text-[#1E3A8A] hover:bg-blue-100'
+                }`}
+              >
+                {isReadingAudio ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
+                {isReadingAudio ? 'Stop Audio' : 'Listen'}
+              </button>
+            </div>
           </div>
 
           {/* Verses List */}
@@ -358,14 +533,25 @@ export const BibleTab: React.FC<BibleTabProps> = ({
                         <Bookmark className={`w-3.5 h-3.5 ${isSaved ? 'fill-amber-600' : ''}`} />
                       </button>
 
+                      {/* Web Share API Direct Trigger */}
+                      <button
+                        onClick={() => handleNativeShareText(verse.text, selectedBook, selectedChapter, verse.number)}
+                        className="p-1.5 rounded-lg text-xs text-amber-600 hover:bg-amber-50 font-sans flex items-center gap-0.5 font-bold"
+                        title="Share verse directly via Mobile Share Sheet"
+                      >
+                        <Share2 className="w-3.5 h-3.5" />
+                      </button>
+
                       {/* Copy Button */}
                       <button
                         onClick={() => {
                           navigator.clipboard.writeText(`"${verse.text}" — ${selectedBook} ${selectedChapter}:${verse.number} (${preferredTranslation})`);
                           setCopiedVerseNum(verse.number);
+                          triggerToast('Copied to clipboard!');
                           setTimeout(() => setCopiedVerseNum(null), 1500);
                         }}
                         className="p-1.5 rounded-lg text-xs text-slate-400 hover:text-slate-600 font-sans flex items-center gap-0.5"
+                        title="Copy verse text"
                       >
                         {copiedVerseNum === verse.number ? (
                           <span className="text-[10px] text-emerald-600 font-bold">Copied!</span>
@@ -374,13 +560,14 @@ export const BibleTab: React.FC<BibleTabProps> = ({
                         )}
                       </button>
 
-                      {/* Share Card Modal Trigger */}
+                      {/* Verse Image Card Customizer */}
                       <button
                         onClick={() => setShareModalVerse(verse)}
-                        className="p-1.5 rounded-lg text-xs text-slate-400 hover:text-slate-600 font-sans"
-                        title="Share Verse Card"
+                        className="p-1.5 rounded-lg text-xs text-blue-700 hover:bg-blue-50 font-sans flex items-center gap-1 font-bold"
+                        title="Create & share Verse Card image"
                       >
-                        <Share2 className="w-3.5 h-3.5" />
+                        <ImageIcon className="w-3.5 h-3.5" />
+                        <span className="text-[10px] hidden sm:inline">Card</span>
                       </button>
                     </div>
 
@@ -523,45 +710,45 @@ export const BibleTab: React.FC<BibleTabProps> = ({
 
             {/* Modal Actions */}
             <div className="space-y-2 pt-1">
+              {/* Primary Action 1: Web Share API Image Card */}
               <button
                 type="button"
-                onClick={() => {
-                  const ref = `${selectedBook} ${selectedChapter}:${shareModalVerse.number} (${preferredTranslation})`;
-                  downloadVerseCardImage(shareModalVerse.text, ref, selectedCardTheme);
-                }}
-                className="w-full py-3 bg-[#D4AF37] hover:bg-amber-400 text-[#1E3A8A] font-extrabold text-xs rounded-2xl shadow-md flex items-center justify-center gap-2 transition-all active:scale-98"
+                onClick={handleNativeShareImageCard}
+                className="w-full py-3 bg-[#1E3A8A] hover:bg-blue-900 text-white font-extrabold text-xs rounded-2xl shadow-md flex items-center justify-center gap-2 transition-all active:scale-98"
               >
-                <Download className="w-4 h-4 text-[#1E3A8A]" />
-                Download High-Res Card (.PNG)
+                <Share2 className="w-4 h-4 text-[#D4AF37]" />
+                Share Card via Mobile Share Sheet
               </button>
 
               <div className="flex gap-2">
+                {/* Secondary Action: Download PNG */}
                 <button
                   type="button"
                   onClick={() => {
-                    navigator.clipboard.writeText(`"${shareModalVerse.text}" — ${selectedBook} ${selectedChapter}:${shareModalVerse.number} (${preferredTranslation})`);
-                    alert('Verse text copied!');
+                    const ref = `${selectedBook} ${selectedChapter}:${shareModalVerse.number} (${preferredTranslation})`;
+                    downloadVerseCardImage(shareModalVerse.text, ref, selectedCardTheme);
+                    triggerToast('Image card downloaded!');
+                  }}
+                  className="flex-1 py-2.5 bg-amber-50 hover:bg-amber-100 text-amber-900 font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 border border-amber-200"
+                >
+                  <Download className="w-3.5 h-3.5 text-amber-700" />
+                  Save PNG
+                </button>
+
+                {/* Secondary Action: Native Share Text */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    handleNativeShareText(
+                      shareModalVerse.text,
+                      selectedBook,
+                      selectedChapter,
+                      shareModalVerse.number
+                    );
                   }}
                   className="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs rounded-xl flex items-center justify-center gap-1.5"
                 >
-                  <Copy className="w-3.5 h-3.5" />
-                  Copy Text
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (navigator.share) {
-                      navigator.share({
-                        title: `${selectedBook} ${selectedChapter}:${shareModalVerse.number}`,
-                        text: `"${shareModalVerse.text}" — ${selectedBook} ${selectedChapter}:${shareModalVerse.number}`
-                      });
-                    } else {
-                      alert('Text copied! Use image download above to post as a story or image card.');
-                    }
-                  }}
-                  className="flex-1 py-2.5 bg-[#1E3A8A] hover:bg-blue-900 text-white font-bold text-xs rounded-xl flex items-center justify-center gap-1.5"
-                >
-                  <Share2 className="w-3.5 h-3.5 text-[#D4AF37]" />
+                  <Share2 className="w-3.5 h-3.5 text-slate-600" />
                   Share Text
                 </button>
               </div>
@@ -569,6 +756,31 @@ export const BibleTab: React.FC<BibleTabProps> = ({
           </div>
         </div>
       )}
+
+      {/* Bible Knowledge Quiz Modal */}
+      <BibleQuizModal
+        isOpen={isQuizOpen}
+        onClose={() => setIsQuizOpen(false)}
+        initialBookName={selectedBook}
+        initialChapter={selectedChapter}
+        onSelectChapter={(b, c) => {
+          setSelectedBook(b);
+          setSelectedChapter(c);
+        }}
+      />
+
+      {/* Offline Storage Manager Modal */}
+      <OfflineBibleModal
+        isOpen={isOfflineModalOpen}
+        onClose={() => setIsOfflineModalOpen(false)}
+        selectedBook={selectedBook}
+        selectedChapter={selectedChapter}
+        onSelectBookChapter={(b, c) => {
+          setSelectedBook(b);
+          setSelectedChapter(c);
+        }}
+        onTriggerToast={triggerToast}
+      />
     </div>
   );
 };

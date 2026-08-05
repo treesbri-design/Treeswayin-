@@ -71,6 +71,7 @@ export interface PrayerEntry {
   audioUrl?: string;
   audioDuration?: number;
   audioTranscript?: string;
+  tags?: string[];
 }
 
 export interface CommunityPrayerRequest {
@@ -83,6 +84,52 @@ export interface CommunityPrayerRequest {
   timeAgo: string;
   isUrgent?: boolean;
   hasUserPrayed?: boolean;
+}
+
+export interface PrayerCircleMember {
+  id: string;
+  name: string;
+  avatarUrl?: string;
+  role: 'owner' | 'member';
+  joinedAt: string;
+}
+
+export interface PrayerCircleComment {
+  id: string;
+  authorName: string;
+  authorAvatar?: string;
+  content: string;
+  createdAt: string;
+}
+
+export interface PrayerCircleRequest {
+  id: string;
+  circleId: string;
+  authorName: string;
+  authorAvatar?: string;
+  title: string;
+  content: string;
+  category: 'Healing' | 'Family' | 'Peace' | 'Guidance' | 'Comfort' | 'Praise' | 'General';
+  isUrgent?: boolean;
+  isAnswered?: boolean;
+  testimony?: string;
+  createdAt: string;
+  prayedUserIds: string[];
+  comments: PrayerCircleComment[];
+  isAnonymous?: boolean;
+}
+
+export interface PrayerCircle {
+  id: string;
+  name: string;
+  description: string;
+  inviteCode: string;
+  category: 'Family' | 'Friends' | 'Small Group' | 'Church' | 'Ministry' | 'Work';
+  coverGradient?: string;
+  createdAt: string;
+  members: PrayerCircleMember[];
+  requests: PrayerCircleRequest[];
+  isPrivate: boolean;
 }
 
 export interface ReadingPlan {

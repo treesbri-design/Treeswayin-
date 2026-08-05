@@ -114,23 +114,23 @@ export const StreakCalendar: React.FC<StreakCalendarProps> = ({ user, onUpdateSt
   };
 
   return (
-    <div className="bg-white rounded-[28px] sm:rounded-[32px] p-5 shadow-sm border border-slate-200/80 space-y-4 relative overflow-hidden">
+    <div className="bg-white rounded-[24px] sm:rounded-[32px] p-4 sm:p-5 shadow-sm border border-slate-200/80 space-y-3.5 relative overflow-hidden">
       {/* Top Streak Summary Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
-        <div className="flex items-center gap-3">
-          <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-amber-500 to-orange-500 text-white flex items-center justify-center font-bold shadow-md shadow-orange-500/20 shrink-0">
-            <Flame className="w-6 h-6 fill-white animate-pulse" />
+        <div className="flex items-center gap-2.5 min-w-0">
+          <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-2xl bg-gradient-to-br from-amber-500 to-orange-500 text-white flex items-center justify-center font-bold shadow-md shadow-orange-500/20 shrink-0">
+            <Flame className="w-5 h-5 sm:w-6 sm:h-6 fill-white animate-pulse" />
           </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <h3 className="text-base font-black text-slate-900">
+          <div className="min-w-0">
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <h3 className="text-sm sm:text-base font-black text-slate-900 truncate">
                 {currentStreak}-Day Spiritual Streak
               </h3>
-              <span className="text-[10px] font-extrabold bg-amber-100 text-amber-900 px-2.5 py-0.5 rounded-full border border-amber-300">
+              <span className="text-[10px] font-extrabold bg-amber-100 text-amber-900 px-2 py-0.5 rounded-full border border-amber-300 shrink-0">
                 ACTIVE
               </span>
             </div>
-            <p className="text-xs text-slate-500">
+            <p className="text-[11px] sm:text-xs text-slate-500 truncate">
               Consecutive days reading scripture & praying
             </p>
           </div>
@@ -139,27 +139,27 @@ export const StreakCalendar: React.FC<StreakCalendarProps> = ({ user, onUpdateSt
         {!isTodayCompleted ? (
           <button
             onClick={handleLogTodayEngagement}
-            className="py-2.5 px-4 bg-gradient-to-r from-[#1E3A8A] to-blue-700 hover:from-blue-900 hover:to-blue-800 text-white font-extrabold text-xs rounded-2xl shadow-md flex items-center justify-center gap-1.5 transition-all active:scale-95 shrink-0"
+            className="w-full sm:w-auto py-2.5 px-3.5 bg-gradient-to-r from-[#1E3A8A] to-blue-700 hover:from-blue-900 hover:to-blue-800 text-white font-extrabold text-xs rounded-2xl shadow-md flex items-center justify-center gap-1.5 transition-all active:scale-95 shrink-0"
           >
-            <CheckCircle2 className="w-4 h-4 text-[#D4AF37]" />
+            <CheckCircle2 className="w-4 h-4 text-[#D4AF37] shrink-0" />
             <span>Check-in Today (+1 Day)</span>
           </button>
         ) : (
-          <div className="py-2 px-3 bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-bold rounded-2xl flex items-center gap-1.5 shrink-0">
-            <CheckCircle2 className="w-4 h-4 text-emerald-600 fill-emerald-100" />
+          <div className="py-2 px-3 bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-bold rounded-2xl flex items-center justify-center gap-1.5 shrink-0">
+            <CheckCircle2 className="w-4 h-4 text-emerald-600 fill-emerald-100 shrink-0" />
             <span>Today's Engagement Complete!</span>
           </div>
         )}
       </div>
 
       {/* Encouragement Banner */}
-      <div className="p-3 bg-gradient-to-r from-amber-500/10 via-amber-50 to-orange-500/10 rounded-2xl border border-amber-200/80 flex items-center gap-3">
-        <Sparkles className="w-5 h-5 text-amber-600 shrink-0" />
-        <div className="text-xs">
-          <span className="font-extrabold text-amber-900 block">
+      <div className="p-3 bg-gradient-to-r from-amber-500/10 via-amber-50 to-orange-500/10 rounded-2xl border border-amber-200/80 flex items-center gap-2.5">
+        <Sparkles className="w-4 h-4 sm:w-5 sm:h-5 text-amber-600 shrink-0" />
+        <div className="text-xs min-w-0">
+          <span className="font-extrabold text-amber-900 block truncate">
             {isTodayCompleted ? '🎉 Daily Goal Achieved!' : '🔥 Keep Your Streak Alive!'}
           </span>
-          <p className="text-[11px] font-serif italic text-amber-800 mt-0.5">
+          <p className="text-[11px] font-serif italic text-amber-800 mt-0.5 line-clamp-2">
             {getEncouragementQuote()}
           </p>
         </div>
@@ -167,23 +167,23 @@ export const StreakCalendar: React.FC<StreakCalendarProps> = ({ user, onUpdateSt
 
       {/* 7-Day Visual Calendar Row */}
       <div>
-        <div className="flex items-center justify-between mb-2 text-xs">
-          <span className="font-bold text-slate-700 flex items-center gap-1">
-            <CalendarIcon className="w-3.5 h-3.5 text-[#1E3A8A]" />
-            This Week's Activity
+        <div className="flex items-center justify-between mb-2 text-xs gap-1">
+          <span className="font-bold text-slate-700 flex items-center gap-1 text-xs">
+            <CalendarIcon className="w-3.5 h-3.5 text-[#1E3A8A] shrink-0" />
+            <span>This Week's Activity</span>
           </span>
-          <span className="text-[10px] text-slate-400 font-medium">
-            {completedDates.length} total active days logged
+          <span className="text-[10px] text-slate-400 font-medium truncate">
+            {completedDates.length} days logged
           </span>
         </div>
 
-        <div className="grid grid-cols-7 gap-1.5 text-center">
+        <div className="grid grid-cols-7 gap-1 sm:gap-1.5 text-center">
           {weekDays.map((day) => {
             const isCompleted = completedDates.includes(day.isoDate);
             return (
               <div
                 key={day.isoDate}
-                className={`p-2 rounded-2xl border transition-all flex flex-col items-center justify-between h-20 ${
+                className={`p-1 sm:p-2 rounded-xl sm:rounded-2xl border transition-all flex flex-col items-center justify-between h-16 sm:h-20 min-w-0 px-0.5 ${
                   day.isToday
                     ? isCompleted
                       ? 'bg-amber-500 text-white border-amber-400 shadow-md ring-2 ring-amber-300'
@@ -193,27 +193,27 @@ export const StreakCalendar: React.FC<StreakCalendarProps> = ({ user, onUpdateSt
                     : 'bg-slate-50 border-slate-200 text-slate-400'
                 }`}
               >
-                <span className="text-[10px] font-extrabold uppercase tracking-tight opacity-80">
+                <span className="text-[9px] sm:text-[10px] font-extrabold uppercase tracking-tight opacity-80 truncate max-w-full">
                   {day.name}
                 </span>
 
-                <span className="text-xs font-black">
+                <span className="text-[11px] sm:text-xs font-black my-0.5">
                   {day.dateNum}
                 </span>
 
-                <div className="mt-1">
+                <div className="flex items-center justify-center shrink-0">
                   {isCompleted ? (
-                    <div className={`w-5 h-5 rounded-full flex items-center justify-center ${
+                    <div className={`w-4 h-4 sm:w-5 sm:h-5 rounded-full flex items-center justify-center ${
                       day.isToday ? 'bg-white text-amber-600' : 'bg-emerald-500 text-white'
                     }`}>
-                      <CheckCircle2 className="w-3.5 h-3.5" />
+                      <CheckCircle2 className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
                     </div>
                   ) : day.isToday ? (
-                    <div className="w-5 h-5 rounded-full bg-blue-100 text-[#1E3A8A] flex items-center justify-center animate-bounce">
-                      <Flame className="w-3 h-3 fill-[#1E3A8A]" />
+                    <div className="w-4 h-4 sm:w-5 sm:h-5 rounded-full bg-blue-100 text-[#1E3A8A] flex items-center justify-center animate-bounce">
+                      <Flame className="w-2.5 h-2.5 sm:w-3 sm:h-3 fill-[#1E3A8A]" />
                     </div>
                   ) : (
-                    <div className="w-4 h-4 rounded-full border border-slate-300" />
+                    <div className="w-3.5 h-3.5 sm:w-4 sm:h-4 rounded-full border border-slate-300" />
                   )}
                 </div>
               </div>
@@ -229,22 +229,22 @@ export const StreakCalendar: React.FC<StreakCalendarProps> = ({ user, onUpdateSt
           Streak Milestones
         </span>
 
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 sm:gap-2">
           {milestones.map((m) => (
             <div
               key={m.days}
-              className={`p-2.5 rounded-2xl border text-left flex items-center gap-2.5 transition-all ${
+              className={`p-2 sm:p-2.5 rounded-xl sm:rounded-2xl border text-left flex items-center gap-2 transition-all min-w-0 ${
                 m.unlocked
                   ? 'bg-gradient-to-br from-amber-50 to-orange-50 border-amber-300 text-amber-950 shadow-xs'
                   : 'bg-slate-50 border-slate-200 text-slate-400 opacity-60'
               }`}
             >
-              <span className="text-xl shrink-0">{m.icon}</span>
+              <span className="text-lg sm:text-xl shrink-0">{m.icon}</span>
               <div className="min-w-0">
                 <span className="block text-xs font-extrabold truncate">
                   {m.title}
                 </span>
-                <span className="text-[10px] font-bold text-slate-500">
+                <span className="text-[10px] font-bold text-slate-500 truncate block">
                   {m.unlocked ? 'Unlocked!' : `${m.days} Days Goal`}
                 </span>
               </div>

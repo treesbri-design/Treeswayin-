@@ -121,7 +121,8 @@ export default function App() {
         isAnswered: true,
         answeredDate: 'July 24, 2026',
         testimonyNote: 'God granted immense favor during interview and team onboarding!',
-        createdAt: 'July 18, 2026'
+        createdAt: 'July 18, 2026',
+        tags: ['#Career', '#Guidance', '#Work']
       },
       {
         id: 'pr-2',
@@ -130,7 +131,8 @@ export default function App() {
         category: 'Healing',
         mood: 'Seeking',
         isAnswered: false,
-        createdAt: 'July 26, 2026'
+        createdAt: 'July 26, 2026',
+        tags: ['#Health', '#Family', '#Healing']
       }
     ];
   });
@@ -355,12 +357,16 @@ export default function App() {
             setMessages={setAiMessages}
             initialPrompt={aiInitialPrompt}
             onClearInitialPrompt={() => setAiInitialPrompt('')}
+            onNavigateToVerse={(book, chapter) => {
+              setActiveTab('bible');
+            }}
             onOpenUpgrade={() => setShowUpgradeModal(true)}
           />
         );
       case 'prayer':
         return (
           <PrayerTab
+            user={user}
             prayers={prayers}
             onAddPrayer={handleAddPrayer}
             onToggleAnswered={handleToggleAnsweredPrayer}
@@ -426,7 +432,7 @@ export default function App() {
         />
 
         {/* Main Tab Content View */}
-        <main className="flex-1 p-4 overflow-y-auto">
+        <main className={`flex-1 p-3 sm:p-4 pb-24 w-full min-h-0 ${activeTab === 'ai' ? 'flex flex-col overflow-hidden' : 'overflow-y-auto'}`}>
           {renderTabContent()}
         </main>
 
