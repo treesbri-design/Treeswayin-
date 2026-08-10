@@ -12,12 +12,15 @@ jobs:
   openai-integration:
     runs-on: ubuntu-latest
     permissions:
-      contents: read
+      contents: write
       pull-requests: write
       issues: write
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
@@ -26,6 +29,12 @@ jobs:
 
       - name: Install dependencies
         run: npm install
+
+      - name: Configure Git
+        run: |
+          git config --global user.email "treesbri@gmail.com"
+          git config --global user.name "treesbri-design"
+          echo "✅ Git configured for automatic commits"
 
       - name: OpenAI API Integration Ready
         env:
@@ -39,5 +48,42 @@ jobs:
       - name: Verify Permissions
         run: |
           echo "Admin Access: Enabled"
+          echo "Write Permission: Enabled"
           echo "Repository: ${{ github.repository }}"
           echo "Actor: ${{ github.actor }}"
+          echo "Ref: ${{ github.ref }}"
+
+      - name: Check for Changes
+        id: check_changes
+        run: |
+          if git diff --quiet; then
+            echo "changes=false" >> $GITHUB_OUTPUT
+          else
+            echo "changes=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Commit and Push Changes
+        if: steps.check_changes.outputs.changes == 'true'
+        run: |
+          git add .
+          git commit -m "feat: AI-generated updates via OpenAI integration
+
+          - Automated commit from OpenAI Integration workflow
+          - Timestamp: $(date -u +'%Y-%m-%dT%H:%M:%SZ')
+          - Triggered by: ${{ github.event_name }}
+          - Repository: ${{ github.repository }}"
+          git push origin ${{ github.ref_name }}
+          echo "✅ Changes pushed successfully"
+
+      - name: Create Pull Request (if needed)
+        if: github.event_name == 'push' && steps.check_changes.outputs.changes == 'true'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Create PR for feature branches
+          if [[ "${{ github.ref }}" != "refs/heads/main" ]]; then
+            gh pr create --title "AI: ${{ github.event_name }} updates" \
+                         --body "Automated pull request from OpenAI Integration" \
+                         --base main \
+                         --head ${{ github.ref_name }} || true
+          fi
