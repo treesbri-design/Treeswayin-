@@ -3,6 +3,7 @@ import { Header } from './components/Header';
 import { BottomNav } from './components/BottomNav';
 import { HomeTab } from './components/HomeTab';
 import { BibleTab } from './components/BibleTab';
+import { SundaySchoolTab } from './components/SundaySchoolTab';
 import { AiTab } from './components/AiTab';
 import { PrayerTab } from './components/PrayerTab';
 import { ProfileTab } from './components/ProfileTab';
@@ -338,6 +339,7 @@ export default function App() {
         return (
           <BibleTab
             onSaveVerse={handleSaveVerse}
+            savedVerses={savedVerses}
             savedVerseKeys={savedVerseKeys}
             highlights={highlights}
             onToggleHighlight={handleToggleHighlight}
@@ -349,6 +351,8 @@ export default function App() {
             }}
           />
         );
+      case 'lessons':
+        return <SundaySchoolTab />;
       case 'ai':
         return (
           <AiTab

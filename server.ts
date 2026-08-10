@@ -66,7 +66,7 @@ Key instructions:
 
       try {
         const response = await ai.models.generateContent({
-          model: "gemini-2.5-flash",
+          model: "gemini-3.6-flash",
           contents: contents.join("\n"),
           config: {
             systemInstruction,
@@ -126,7 +126,7 @@ Return a JSON object matching this exact format:
 
       try {
         const response = await ai.models.generateContent({
-          model: "gemini-2.5-flash",
+          model: "gemini-3.6-flash",
           contents: prompt,
           config: {
             responseMimeType: "application/json",
@@ -187,7 +187,7 @@ Return JSON format:
 
       try {
         const response = await ai.models.generateContent({
-          model: "gemini-2.5-flash",
+          model: "gemini-3.6-flash",
           contents: prompt,
           config: {
             responseMimeType: "application/json",
@@ -248,7 +248,7 @@ Return JSON format:
 
       try {
         const response = await ai.models.generateContent({
-          model: "gemini-2.5-flash",
+          model: "gemini-3.6-flash",
           contents: prompt,
           config: {
             responseMimeType: "application/json",
@@ -273,6 +273,152 @@ Return JSON format:
     } catch (error: any) {
       console.error("Error in /api/ai/sermon-summary:", error);
       res.status(500).json({ error: "Failed to summarize sermon" });
+    }
+  });
+
+  // AI Sunday School Lesson Generator Endpoint
+  app.post("/api/ai/sunday-school-lesson", async (req, res) => {
+    try {
+      const { topic, ageGroup, durationMinutes, classSize, specialFocus } = req.body;
+      const ai = getGenAI();
+
+      const topicText = topic || "David and Goliath (1 Samuel 17)";
+      const targetAge = ageGroup || "Early Elementary (6-8)";
+      const duration = durationMinutes || 30;
+
+      if (!ai) {
+        return res.json(getFallbackSundaySchoolLesson(topicText, targetAge, duration));
+      }
+
+      const prompt = `You are a professional Christian Children's Ministry director and Sunday school teacher trainer.
+Generate a comprehensive, simplified, easy-to-teach Sunday school lesson plan.
+Topic / Bible Passage: "${topicText}"
+Target Age Group: "${targetAge}"
+Class Duration: ${duration} minutes
+Class Size: "${classSize || 'Medium (6-15)'}"
+Special Focus: "${specialFocus || 'Interactive story with craft and object lesson'}"
+
+Return JSON format:
+{
+  "title": "Catchy Kid-Friendly Lesson Title",
+  "passage": "Specific Bible passage reference e.g. 1 Samuel 17:32-50",
+  "ageGroup": "${targetAge}",
+  "durationMinutes": ${duration},
+  "bigIdea": "1-sentence central takeaway for kids",
+  "memoryVerse": {
+    "reference": "Book Chapter:Verse",
+    "text": "Short verse text",
+    "gestureOrTip": "Action gesture or motion chant for kids"
+  },
+  "materialsNeeded": ["Material 1", "Material 2", "Material 3"],
+  "icebreaker": {
+    "title": "Icebreaker Game Title",
+    "instructions": "Clear step-by-step game rules",
+    "duration": "5 mins"
+  },
+  "storyScript": {
+    "summary": "Kid-friendly narrative paragraph for the teacher to speak.",
+    "keyTalkingPoints": [
+      "Point 1",
+      "Point 2",
+      "Point 3"
+    ]
+  },
+  "discussionQuestions": [
+    {
+      "question": "Age-appropriate question 1?",
+      "suggestedAnswer": "Sample answer 1"
+    },
+    {
+      "question": "Age-appropriate question 2?",
+      "suggestedAnswer": "Sample answer 2"
+    },
+    {
+      "question": "Age-appropriate question 3?",
+      "suggestedAnswer": "Sample answer 3"
+    }
+  ],
+  "activityOrCraft": {
+    "title": "Craft/Activity Title",
+    "description": "Step by step craft or game instructions.",
+    "materials": ["Craft material 1", "Craft material 2"]
+  },
+  "closingPrayer": "Short repeating prayer for kids to say after the teacher line-by-line.",
+  "parentNote": "2-sentence takeaway summary for parents when picking up their child."
+}`;
+
+      try {
+        const response = await ai.models.generateContent({
+          model: "gemini-3.6-flash",
+          contents: prompt,
+          config: {
+            responseMimeType: "application/json",
+            temperature: 0.7,
+          },
+        });
+
+        res.json(JSON.parse(response.text || "{}"));
+      } catch (geminiError) {
+        console.warn("Gemini API error in lesson plan, returning structured fallback:", geminiError);
+        res.json(getFallbackSundaySchoolLesson(topicText, targetAge, duration));
+      }
+    } catch (error: any) {
+      console.error("Error in /api/ai/sunday-school-lesson:", error);
+      res.status(500).json({ error: "Failed to generate lesson plan" });
+    }
+  });
+
+  // AI Daily Prayer Prompt Endpoint
+  app.post("/api/ai/daily-prayer-prompt", async (req, res) => {
+    try {
+      const { category, userFocus } = req.body;
+      const ai = getGenAI();
+
+      const chosenCategory = category || "Gratitude & Peace";
+
+      if (!ai) {
+        return res.json(getFallbackDailyPrayerPrompt(chosenCategory));
+      }
+
+      const prompt = `You are a compassionate Christian pastor and prayer leader.
+Generate an inspiring, fresh Daily Prayer Prompt for a believer to start their quiet time today.
+Category / Focus: "${chosenCategory}"
+User Focus: "${userFocus || 'General daily prayer starter'}"
+
+Return JSON format:
+{
+  "theme": "Inspiring Title (e.g. Resting in Unshakable Peace)",
+  "category": "${chosenCategory}",
+  "scriptureAnchor": {
+    "reference": "Book Chapter:Verse",
+    "text": "Scripture passage text that anchors this prayer prompt"
+  },
+  "prayerStarter": "A warm, 3-4 sentence open-ended prayer starter written in first person ('Heavenly Father, as I enter this moment of quiet...').",
+  "guidedPoints": [
+    "Pause & Thank: Name 2 specific ways God showed up for you recently.",
+    "Surrender & Rest: Cast any anxiety, fear, or pressing deadline into His capable hands.",
+    "Intercede: Pray for a family member, friend, or neighbor needing encouragement today."
+  ]
+}`;
+
+      try {
+        const response = await ai.models.generateContent({
+          model: "gemini-3.6-flash",
+          contents: prompt,
+          config: {
+            responseMimeType: "application/json",
+            temperature: 0.8,
+          },
+        });
+
+        res.json(JSON.parse(response.text || "{}"));
+      } catch (geminiError) {
+        console.warn("Gemini API error in prayer prompt, returning fallback:", geminiError);
+        res.json(getFallbackDailyPrayerPrompt(chosenCategory));
+      }
+    } catch (error: any) {
+      console.error("Error in /api/ai/daily-prayer-prompt:", error);
+      res.status(500).json({ error: "Failed to generate daily prayer prompt" });
     }
   });
 
@@ -308,6 +454,125 @@ function getFallbackVerse(query: string): string {
     return "Isaiah 41:10 — Fear not, for I am with you; be not dismayed, for I am your God. I will strengthen you, yes, I will help you.";
   }
   return "Romans 8:28 — And we know that in all things God works for the good of those who love Him, who have been called according to His purpose.";
+}
+
+function getFallbackSundaySchoolLesson(topic: string, ageGroup: string, durationMinutes: number) {
+  return {
+    title: `Giant Faith: Understanding ${topic || 'David & Goliath'}`,
+    passage: "1 Samuel 17:32-50",
+    ageGroup: ageGroup || "Early Elementary (6-8)",
+    durationMinutes: durationMinutes || 30,
+    bigIdea: "God is bigger than any giant problem or fear we ever face!",
+    memoryVerse: {
+      reference: "1 Samuel 17:47",
+      text: "The battle is the LORD's.",
+      gestureOrTip: "Clap hands twice on 'battle' and point up to the sky on 'LORD's'!"
+    },
+    materialsNeeded: [
+      "5 smooth stones or paper cutouts",
+      "Crayons or markers",
+      "Construction paper",
+      "Tape or glue",
+      "Bibles"
+    ],
+    icebreaker: {
+      title: "Giant Steps Game",
+      instructions: "Line kids up against the wall. Ask simple Bible questions. When answered correctly, kids take 1 'Giant Step' forward. First to reach the teacher wins!",
+      duration: "5 mins"
+    },
+    storyScript: {
+      summary: "Long ago, a young shepherd boy named David visited his brothers on a battlefield. A huge 9-foot giant named Goliath was shouting scares at God's army. While everyone else was terrified, David remembered how God helped him protect his sheep from lions and bears! With just a sling and 5 smooth stones, David trusted God completely. God gave David victory, proving that no problem is too big for our Almighty Father.",
+      keyTalkingPoints: [
+        "David was small, but his trust in God was huge.",
+        "Goliath tried to scare people, but God is always stronger than fear.",
+        "When we face hard days, we can pray and ask God for courage."
+      ]
+    },
+    discussionQuestions: [
+      {
+        question: "What are some 'giants' (fears or hard things) that kids face today?",
+        suggestedAnswer: "Starting a new school, dark rooms, taking hard tests, or feeling left out."
+      },
+      {
+        question: "How did David know God would help him fight Goliath?",
+        suggestedAnswer: "Because God was faithful to David when he saved his sheep from wild animals!"
+      },
+      {
+        question: "What is one promise of God you can remember when you feel afraid?",
+        suggestedAnswer: "Deuteronomy 31:6 — 'The LORD your God goes with you; he will never leave you.'"
+      }
+    ],
+    activityOrCraft: {
+      title: "5 Smooth Stones Courage Craft",
+      description: "Give each child 5 paper stone cutouts. On each stone, have them write or draw 1 thing God helps them with (Family, Friends, School, Courage, Peace). Glue them onto a paper shield.",
+      materials: ["Paper stone cutouts", "Paper shields", "Glue sticks", "Markers"]
+    },
+    closingPrayer: "Dear Lord Jesus, thank You that You are bigger and stronger than any giant fear in my life. Help me to trust You every day and step out in faith. Amen!",
+    parentNote: "Today in Sunday School, your child learned about David & Goliath (1 Samuel 17) and how God gives us courage. Ask your child to share their 5 Smooth Stones craft with you!"
+  };
+}
+
+function getFallbackDailyPrayerPrompt(category: string) {
+  const prompts: Record<string, any> = {
+    'Gratitude & Peace': {
+      theme: "Anchoring Your Heart in Quiet Gratitude",
+      category: "Gratitude & Peace",
+      scriptureAnchor: {
+        reference: "Philippians 4:6-7",
+        text: "Do not be anxious about anything, but in every situation, by prayer and petition, with thanksgiving, present your requests to God. And the peace of God, which transcends all understanding, will guard your hearts and minds in Christ Jesus."
+      },
+      prayerStarter: "Heavenly Father, as I enter this moment of quiet fellowship with You today, I pause to breathe in Your unshakeable peace. When my mind feels pulled toward stress or rushing, remind me that You are in complete control of every detail of my life...",
+      guidedPoints: [
+        "Pause & Praise: Name 3 specific blessings God provided for you this week.",
+        "Surrender Anxiety: Name one pressing worry and consciously release it into God's hands.",
+        "Seek Wisdom: Ask for gentleness and clarity in your interactions today."
+      ]
+    },
+    'Strength & Courage': {
+      theme: "Stepping Forward in Divine Courage",
+      category: "Strength & Courage",
+      scriptureAnchor: {
+        reference: "Isaiah 41:10",
+        text: "Fear not, for I am with you; be not dismayed, for I am your God. I will strengthen you, yes, I will help you, I will uphold you with My righteous right hand."
+      },
+      prayerStarter: "Lord God, You are my fortress and my strength. When challenges feel intimidating or heavy today, help me remember that I do not walk alone. Fill my spirit with boldness, patience, and confidence in Your promise...",
+      guidedPoints: [
+        "Acknowledge Weakness: Tell God where you feel exhausted or uncertain.",
+        "Claim His Strength: Pray for perseverance and courage to face today's tasks.",
+        "Intercede for Others: Pray for someone in your family or community needing spiritual strength."
+      ]
+    },
+    'Guidance & Wisdom': {
+      theme: "Seeking the Holy Spirit's Direction",
+      category: "Guidance & Wisdom",
+      scriptureAnchor: {
+        reference: "Proverbs 3:5-6",
+        text: "Trust in the LORD with all your heart and lean not on your own understanding; in all your ways submit to Him, and He will make your paths straight."
+      },
+      prayerStarter: "Father in Heaven, I yield my plans and decisions to Your divine wisdom today. Grant me spiritual discernment to hear Your soft voice guiding my steps, and give me a willing heart to follow where You lead...",
+      guidedPoints: [
+        "Submit Decisions: Present a specific choice or direction to the Lord.",
+        "Ask for Discernment: Pray for eyes to see opportunities to love and serve others.",
+        "Walk in Obedience: Ask for a quiet heart that trusts God's perfect timing."
+      ]
+    },
+    'Family & Healing': {
+      theme: "Covering Loved Ones in God's Grace",
+      category: "Family & Healing",
+      scriptureAnchor: {
+        reference: "Psalm 103:2-3",
+        text: "Praise the LORD, my soul, and forget not all His benefits—who forgives all your sins and heals all your diseases."
+      },
+      prayerStarter: "Dear Jesus, I bring my family, friends, and loved ones before Your throne of grace today. You are Jehovah Rapha, the Lord who heals and restores. Cover our home with Your protection and fill our hearts with unity...",
+      guidedPoints: [
+        "Pray for Healing: Lift up anyone facing physical, emotional, or spiritual pain.",
+        "Forgive & Reconcile: Ask God for grace to forgive and bring restoration in relationships.",
+        "Protective Shield: Pray for God's angels to guard your home and community."
+      ]
+    }
+  };
+
+  return prompts[category] || prompts['Gratitude & Peace'];
 }
 
 startServer();

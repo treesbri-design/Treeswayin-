@@ -1,5 +1,5 @@
 import React from 'react';
-import { Home, BookOpen, Sparkles, BookHeart, User } from 'lucide-react';
+import { Home, BookOpen, GraduationCap, Sparkles, BookHeart, User } from 'lucide-react';
 import { NavTab } from '../types';
 
 interface BottomNavProps {
@@ -11,6 +11,7 @@ export const BottomNav: React.FC<BottomNavProps> = ({ activeTab, setActiveTab })
   const tabs = [
     { id: 'home' as NavTab, label: 'Home', icon: Home },
     { id: 'bible' as NavTab, label: 'Bible', icon: BookOpen },
+    { id: 'lessons' as NavTab, label: 'Lessons', icon: GraduationCap },
     { id: 'ai' as NavTab, label: 'FaithAI', icon: Sparkles, isHighlight: true },
     { id: 'prayer' as NavTab, label: 'Prayer', icon: BookHeart },
     { id: 'profile' as NavTab, label: 'Profile', icon: User },

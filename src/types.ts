@@ -1,4 +1,42 @@
-export type NavTab = 'home' | 'bible' | 'ai' | 'prayer' | 'profile';
+export type NavTab = 'home' | 'bible' | 'lessons' | 'ai' | 'prayer' | 'profile';
+
+export type AgeGroup = 'Preschool (3-5)' | 'Early Elementary (6-8)' | 'Tweens (9-12)' | 'Teens (13-17)';
+
+export interface SundaySchoolLesson {
+  id: string;
+  title: string;
+  passage: string;
+  ageGroup: AgeGroup | string;
+  durationMinutes: number;
+  bigIdea: string;
+  memoryVerse: {
+    reference: string;
+    text: string;
+    gestureOrTip?: string;
+  };
+  materialsNeeded: string[];
+  icebreaker: {
+    title: string;
+    instructions: string;
+    duration: string;
+  };
+  storyScript: {
+    summary: string;
+    keyTalkingPoints: string[];
+  };
+  discussionQuestions: {
+    question: string;
+    suggestedAnswer?: string;
+  }[];
+  activityOrCraft: {
+    title: string;
+    description: string;
+    materials: string[];
+  };
+  closingPrayer: string;
+  parentNote: string;
+  createdAt?: string;
+}
 
 export type BibleTranslation = 'NIV' | 'KJV' | 'ESV' | 'WEB';
 
@@ -84,6 +122,19 @@ export interface CommunityPrayerRequest {
   timeAgo: string;
   isUrgent?: boolean;
   hasUserPrayed?: boolean;
+}
+
+export interface DailyPrayerPrompt {
+  id?: string;
+  theme: string;
+  category: string;
+  scriptureAnchor: {
+    reference: string;
+    text: string;
+  };
+  prayerStarter: string;
+  guidedPoints: string[];
+  dateString?: string;
 }
 
 export interface PrayerCircleMember {

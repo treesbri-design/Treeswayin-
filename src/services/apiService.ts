@@ -90,3 +90,104 @@ export async function summarizeSermonNotes(notes: string) {
     };
   }
 }
+
+export async function generateSundaySchoolLesson(params: {
+  topic: string;
+  ageGroup: string;
+  durationMinutes?: number;
+  classSize?: string;
+  specialFocus?: string;
+}) {
+  try {
+    const res = await fetch('/api/ai/sunday-school-lesson', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(params),
+    });
+    if (!res.ok) throw new Error('Sunday School Lesson generation error');
+    return await res.json();
+  } catch (err) {
+    console.warn("API call failed for Sunday school lesson, using fallback object:", err);
+    return {
+      title: `Giant Faith: Understanding ${params.topic || 'David & Goliath'}`,
+      passage: '1 Samuel 17:32-50',
+      ageGroup: params.ageGroup || 'Early Elementary (6-8)',
+      durationMinutes: params.durationMinutes || 30,
+      bigIdea: 'God is bigger than any giant problem or fear we ever face!',
+      memoryVerse: {
+        reference: '1 Samuel 17:47',
+        text: "The battle is the LORD's.",
+        gestureOrTip: "Clap hands twice on 'battle' and point up to the sky on 'LORD's'!"
+      },
+      materialsNeeded: [
+        '5 smooth stones or paper cutouts',
+        'Crayons or markers',
+        'Construction paper',
+        'Tape or glue',
+        'Bibles'
+      ],
+      icebreaker: {
+        title: 'Giant Steps Game',
+        instructions: "Line kids up against the wall. Ask simple Bible questions. When answered correctly, kids take 1 'Giant Step' forward. First to reach the teacher wins!",
+        duration: '5 mins'
+      },
+      storyScript: {
+        summary: "Long ago, a young shepherd boy named David visited his brothers on a battlefield. A huge 9-foot giant named Goliath was shouting scares at God's army. While everyone else was terrified, David remembered how God helped him protect his sheep from lions and bears! With just a sling and 5 smooth stones, David trusted God completely. God gave David victory, proving that no problem is too big for our Almighty Father.",
+        keyTalkingPoints: [
+          'David was small, but his trust in God was huge.',
+          'Goliath tried to scare people, but God is always stronger than fear.',
+          'When we face hard days, we can pray and ask God for courage.'
+        ]
+      },
+      discussionQuestions: [
+        {
+          question: "What are some 'giants' (fears or hard things) that kids face today?",
+          suggestedAnswer: 'Starting a new school, dark rooms, taking hard tests, or feeling left out.'
+        },
+        {
+          question: 'How did David know God would help him fight Goliath?',
+          suggestedAnswer: 'Because God was faithful to David when he saved his sheep from wild animals!'
+        },
+        {
+          question: 'What is one promise of God you can remember when you feel afraid?',
+          suggestedAnswer: "Deuteronomy 31:6 — 'The LORD your God goes with you; he will never leave you.'"
+        }
+      ],
+      activityOrCraft: {
+        title: '5 Smooth Stones Courage Craft',
+        description: "Give each child 5 paper stone cutouts. On each stone, have them write or draw 1 thing God helps them with (Family, Friends, School, Courage, Peace). Glue them onto a paper shield.",
+        materials: ['Paper stone cutouts', 'Paper shields', 'Glue sticks', 'Markers']
+      },
+      closingPrayer: 'Dear Lord Jesus, thank You that You are bigger and stronger than any giant fear in my life. Help me to trust You every day and step out in faith. Amen!',
+      parentNote: 'Today in Sunday School, your child learned about David & Goliath (1 Samuel 17) and how God gives us courage. Ask your child to share their 5 Smooth Stones craft with you!'
+    };
+  }
+}
+
+export async function fetchDailyPrayerPrompt(category?: string, userFocus?: string) {
+  try {
+    const res = await fetch('/api/ai/daily-prayer-prompt', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ category, userFocus }),
+    });
+    if (!res.ok) throw new Error('Prayer prompt error');
+    return await res.json();
+  } catch (err) {
+    console.warn("API call failed for prayer prompt, using fallback:", err);
+    return {
+      theme: "Anchoring Your Heart in Quiet Gratitude",
+      category: category || "Gratitude & Peace",
+      scriptureAnchor: {
+        reference: "Philippians 4:6-7",
+        text: "Do not be anxious about anything, but in every situation, by prayer and petition, with thanksgiving, present your requests to God. And the peace of God, which transcends all understanding, will guard your hearts and minds in Christ Jesus."
+      },
+      prayerStarter: "Heavenly Father, as I enter this moment of quiet fellowship with You today, I pause to breathe in Your unshakeable peace. When my mind feels pulled toward stress or rushing, remind me that You are in complete control of every detail of my life...",
+      guidedPoints: [
+        "Pause & Praise: Name 3 specific blessings God provided for you this week.",
+        "Surrender Anxiety: Name one pressing worry and consciously release it into God's hands.",
+        "Seek Wisdom: Ask for gentleness and clarity in your interactions today."
+      ]
+    };
+  }
+}

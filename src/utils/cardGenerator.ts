@@ -192,10 +192,12 @@ export async function shareVerseCardImage(
 
         if (navigator.canShare && navigator.canShare({ files: [file] })) {
           try {
+            const appUrl = typeof window !== 'undefined' ? window.location.href : '';
             await navigator.share({
               files: [file],
               title: reference,
-              text: `"${verseText}" — ${reference}`
+              text: `"${verseText}" — ${reference}${appUrl ? `\n\nFaithPath AI: ${appUrl}` : ''}`,
+              url: appUrl || undefined
             });
             resolve(true);
             return;

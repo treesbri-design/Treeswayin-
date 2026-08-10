@@ -2,6 +2,7 @@ import React from 'react';
 import { UserProfile, NavTab, DailyDevotional, ReadingPlan, BibleTranslation } from '../types';
 import { CommunityPrayerWall } from './CommunityPrayerWall';
 import { DailyVerseWidget } from './DailyVerseWidget';
+import { DailyPrayerPromptWidget } from './DailyPrayerPromptWidget';
 import { StreakCalendar } from './StreakCalendar';
 import { MergedProjectsHub } from './MergedProjectsHub';
 import { HeartHandshake, Sparkles } from 'lucide-react';
@@ -65,6 +66,12 @@ export const HomeTab: React.FC<HomeTabProps> = ({
         onAskAiPrompt={onAskAiPrompt}
         preferredTranslation={user.preferredTranslation}
         onChangeTranslation={onChangeTranslation}
+      />
+
+      {/* NEW: Daily Prayer Prompt Section */}
+      <DailyPrayerPromptWidget
+        onAskAiPrompt={onAskAiPrompt}
+        setActiveTab={setActiveTab}
       />
 
       {/* Spiritual Streak Calendar */}

@@ -2,6 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { 
   Search, 
   Book, 
+  BookOpen,
   Bookmark, 
   Highlighter, 
   Share2, 
@@ -22,7 +23,10 @@ import {
   CheckCircle2,
   FolderDown,
   ArrowDownToLine,
-  WifiOff
+  WifiOff,
+  ArrowRight,
+  Compass,
+  Filter
 } from 'lucide-react';
 import { BibleBook, BibleTranslation, SavedVerse, VerseHighlight } from '../types';
 import { POPULAR_BIBLE_BOOKS, ALL_BIBLE_BOOKS_NAMES, getVersesForChapter } from '../data/bibleData';
@@ -30,9 +34,11 @@ import { offlineStorage } from '../services/offlineStorageService';
 import { CARD_THEMES, downloadVerseCardImage, shareVerseCardImage, CardTheme } from '../utils/cardGenerator';
 import { BibleQuizModal } from './BibleQuizModal';
 import { OfflineBibleModal } from './OfflineBibleModal';
+import { BibleAudioPlayer } from './BibleAudioPlayer';
 
 interface BibleTabProps {
   onSaveVerse: (verse: { bookName: string; chapter: number; verse: number; text: string }) => void;
+  savedVerses?: SavedVerse[];
   savedVerseKeys: Set<string>;
   highlights: VerseHighlight[];
   onToggleHighlight: (verseId: string, bookName: string, chapter: number, verse: number, text: string, color?: VerseHighlight['color']) => void;
@@ -43,6 +49,7 @@ interface BibleTabProps {
 
 export const BibleTab: React.FC<BibleTabProps> = ({
   onSaveVerse,
+  savedVerses = [],
   savedVerseKeys,
   highlights,
   onToggleHighlight,
@@ -51,12 +58,12 @@ export const BibleTab: React.FC<BibleTabProps> = ({
   onChangeTranslation
 }) => {
   // State
+  const [viewMode, setViewMode] = useState<'reader' | 'saved' | 'highlights'>('reader');
+  const [highlightFilter, setHighlightFilter] = useState<string>('all');
   const [selectedBook, setSelectedBook] = useState<string>('John');
   const [selectedChapter, setSelectedChapter] = useState<number>(3);
   const [searchQuery, setSearchQuery] = useState<string>('');
-  const [testamentFilter, setTestamentFilter] = useState<'All' | 'Old' | 'New'>('All');
   const [isReadingAudio, setIsReadingAudio] = useState<boolean>(false);
-  const [activeHighlightVerse, setActiveHighlightVerse] = useState<number | null>(null);
   const [copiedVerseNum, setCopiedVerseNum] = useState<number | null>(null);
   const [shareModalVerse, setShareModalVerse] = useState<{ number: number; text: string } | null>(null);
   const [selectedCardTheme, setSelectedCardTheme] = useState<CardTheme>(CARD_THEMES[0]);
@@ -64,6 +71,8 @@ export const BibleTab: React.FC<BibleTabProps> = ({
   const [isOfflineModalOpen, setIsOfflineModalOpen] = useState<boolean>(false);
   const [offlineSyncToken, setOfflineSyncToken] = useState<number>(0);
   const [shareToastMessage, setShareToastMessage] = useState<string | null>(null);
+  const [showAudioPlayer, setShowAudioPlayer] = useState<boolean>(false);
+  const [activeSpokenVerseNumber, setActiveSpokenVerseNumber] = useState<number | null>(null);
 
   const triggerToast = (msg: string) => {
     setShareToastMessage(msg);
@@ -71,7 +80,6 @@ export const BibleTab: React.FC<BibleTabProps> = ({
   };
 
   const isCurrentChapterDownloaded = useMemo(() => {
-    // depend on offlineSyncToken to force update
     return offlineStorage.isChapterDownloaded(selectedBook, selectedChapter);
   }, [selectedBook, selectedChapter, offlineSyncToken]);
 
@@ -81,41 +89,44 @@ export const BibleTab: React.FC<BibleTabProps> = ({
     triggerToast(`Downloaded ${selectedBook} Chapter ${selectedChapter} (${res.versesCount} verses) for offline reading! 📥`);
   };
 
-  const handleDownloadCurrentBook = () => {
-    const chapterCount = currentBookMeta?.chapterCount || 28;
-    const res = offlineStorage.downloadFullBookOffline(selectedBook, chapterCount);
-    setOfflineSyncToken(prev => prev + 1);
-    triggerToast(`Saved all ${res.chaptersDownloaded} chapters of ${selectedBook} to local storage! 📱`);
-  };
-
   // Web Share API text helper
   const handleNativeShareText = async (
     verseText: string,
     bookName: string,
     chapterNum: number,
-    verseNum: number
+    verseNum: number,
+    extraInfo?: { isHighlight?: boolean; highlightColor?: string; dateSaved?: string }
   ) => {
     const refText = `${bookName} ${chapterNum}:${verseNum} (${preferredTranslation})`;
-    const shareText = `"${verseText}" — ${refText}`;
+    const appUrl = window.location.href;
+    
+    let tag = '';
+    if (extraInfo?.isHighlight) {
+      tag = ` [Highlighted ${extraInfo.highlightColor ? extraInfo.highlightColor.toUpperCase() : 'Verse'}]`;
+    } else if (extraInfo?.dateSaved) {
+      tag = ` [Saved Verse]`;
+    }
+
+    const shareText = `"${verseText}" — ${refText}${tag}\n\nRead & study scripture on FaithPath AI: ${appUrl}`;
     
     if (navigator.share) {
       try {
         await navigator.share({
           title: refText,
           text: shareText,
-          url: window.location.href
+          url: appUrl
         });
-        triggerToast('Verse shared successfully!');
+        triggerToast('Verse shared via Web Share API! 📤');
         return;
       } catch (err: any) {
-        if (err.name === 'AbortError') return; // User cancelled share
+        if (err.name === 'AbortError') return; // User cancelled share modal
       }
     }
 
-    // Fallback to clipboard if share unavailable or failed
+    // Fallback if Web Share API is unavailable
     try {
       await navigator.clipboard.writeText(shareText);
-      triggerToast('Verse copied to clipboard for sharing!');
+      triggerToast('Verse & App Link copied to clipboard! 📋');
     } catch {
       triggerToast('Verse text copied!');
     }
@@ -157,13 +168,82 @@ export const BibleTab: React.FC<BibleTabProps> = ({
     };
   }, [selectedBook]);
 
+  // Search books and chapters
+  const bookSearchResults = useMemo(() => {
+    if (!searchQuery.trim()) return [];
+    const q = searchQuery.trim().toLowerCase();
+
+    // Check for book name + optional chapter number (e.g. "John 3", "1 Cor 13", "Ps 23", "Genesis 12", "Jn 3")
+    const matchWithChapter = q.match(/^([1-3]?\s*[a-z]+(?:\s+[a-z]+)?)\s*(\d+)$/i);
+    let targetChapterFromQuery: number | null = null;
+    let bookQueryText = q;
+
+    if (matchWithChapter) {
+      bookQueryText = matchWithChapter[1].trim().toLowerCase();
+      targetChapterFromQuery = parseInt(matchWithChapter[2], 10);
+    }
+
+    const matches = ALL_BIBLE_BOOKS_NAMES.filter(bookName => {
+      const bn = bookName.toLowerCase();
+      if (bn.includes(bookQueryText)) return true;
+      if (bookQueryText === 'gen' && bn === 'genesis') return true;
+      if (bookQueryText === 'ex' && bn === 'exodus') return true;
+      if (bookQueryText === 'lev' && bn === 'leviticus') return true;
+      if (bookQueryText === 'num' && bn === 'numbers') return true;
+      if (bookQueryText === 'deut' && bn === 'deuteronomy') return true;
+      if (bookQueryText === 'ps' && bn === 'psalms') return true;
+      if (bookQueryText === 'psalm' && bn === 'psalms') return true;
+      if (bookQueryText === 'prov' && bn === 'proverbs') return true;
+      if (bookQueryText === 'matt' && bn === 'matthew') return true;
+      if (bookQueryText === 'jn' && bn === 'john') return true;
+      if (bookQueryText === 'rom' && bn === 'romans') return true;
+      if (bookQueryText === 'cor' && bn.includes('corinthians')) return true;
+      if (bookQueryText === 'rev' && bn === 'revelation') return true;
+      if (bookQueryText === 'heb' && bn === 'hebrews') return true;
+      if (bookQueryText === 'gal' && bn === 'galatians') return true;
+      if (bookQueryText === 'eph' && bn === 'ephesians') return true;
+      if (bookQueryText === 'phil' && bn === 'philippians') return true;
+      if (bookQueryText === 'col' && bn === 'colossians') return true;
+      if (bookQueryText === 'sam' && bn.includes('samuel')) return true;
+      if (bookQueryText === 'kg' && bn.includes('kings')) return true;
+      if (bookQueryText === 'chr' && bn.includes('chronicles')) return true;
+      if (bookQueryText === 'pet' && bn.includes('peter')) return true;
+      if (bookQueryText === 'tim' && bn.includes('timothy')) return true;
+      if (bookQueryText === 'thess' && bn.includes('thessalonians')) return true;
+      return false;
+    });
+
+    return matches.map(bookName => {
+      const meta = POPULAR_BIBLE_BOOKS.find(b => b.name.toLowerCase() === bookName.toLowerCase()) || {
+        id: bookName.toLowerCase(),
+        name: bookName,
+        testament: ALL_BIBLE_BOOKS_NAMES.indexOf(bookName) < 39 ? 'Old' : 'New',
+        category: 'Scripture',
+        chapterCount: ALL_BIBLE_BOOKS_NAMES.indexOf(bookName) < 39 ? 30 : 20
+      };
+
+      return {
+        bookName,
+        testament: meta.testament,
+        chapterCount: meta.chapterCount || 28,
+        suggestedChapter: targetChapterFromQuery && targetChapterFromQuery <= (meta.chapterCount || 150) ? targetChapterFromQuery : null
+      };
+    });
+  }, [searchQuery]);
+
+  const handleJumpToBookChapter = (bookName: string, chapter: number = 1) => {
+    setSelectedBook(bookName);
+    setSelectedChapter(chapter);
+    setSearchQuery('');
+    setViewMode('reader');
+  };
+
   // Search results
   const searchResults = useMemo(() => {
     if (!searchQuery.trim()) return [];
     const query = searchQuery.toLowerCase();
     const results: { bookName: string; chapter: number; verseNumber: number; text: string }[] = [];
 
-    // Search inside seed books
     POPULAR_BIBLE_BOOKS.forEach(book => {
       Object.entries(book.chapters).forEach(([chapNum, verses]) => {
         verses.forEach(v => {
@@ -185,24 +265,15 @@ export const BibleTab: React.FC<BibleTabProps> = ({
     return results.slice(0, 20);
   }, [searchQuery]);
 
-  // Handle Audio Speech Synthesis
+  // Filtered Highlights
+  const filteredHighlights = useMemo(() => {
+    if (highlightFilter === 'all') return highlights;
+    return highlights.filter(h => h.color === highlightFilter);
+  }, [highlights, highlightFilter]);
+
+  // Handle Audio Speech Synthesis & Player
   const handleToggleAudio = () => {
-    if (isReadingAudio) {
-      window.speechSynthesis?.cancel();
-      setIsReadingAudio(false);
-    } else {
-      if (!('speechSynthesis' in window)) {
-        alert('Text-to-speech is not supported in this browser.');
-        return;
-      }
-      const textToRead = `${selectedBook} Chapter ${selectedChapter}. ` + currentVerses.map(v => `Verse ${v.number}. ${v.text}`).join(' ');
-      const utterance = new SpeechSynthesisUtterance(textToRead);
-      utterance.rate = 0.95;
-      utterance.onend = () => setIsReadingAudio(false);
-      utterance.onerror = () => setIsReadingAudio(false);
-      window.speechSynthesis.speak(utterance);
-      setIsReadingAudio(true);
-    }
+    setShowAudioPlayer(prev => !prev);
   };
 
   // Check highlight color
@@ -233,27 +304,100 @@ export const BibleTab: React.FC<BibleTabProps> = ({
       {/* Top Bible Controls & Search Bar */}
       <div className="bg-white rounded-[28px] sm:rounded-[32px] p-5 shadow-lg shadow-slate-200/50 border border-slate-100 space-y-3">
         {/* Search Input */}
-        <div className="relative">
-          <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search Scriptures, topics, or verses..."
-            className="w-full pl-10 pr-9 py-2.5 bg-slate-50 border border-slate-200 rounded-2xl text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#1E3A8A]/30"
-          />
-          {searchQuery && (
-            <button
-              onClick={() => setSearchQuery('')}
-              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1"
-            >
-              <X className="w-3.5 h-3.5" />
-            </button>
+        <div className="space-y-2">
+          <div className="relative">
+            <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-[#1E3A8A]" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search books (e.g. John 3, Ps 23), chapters, or verses..."
+              className="w-full pl-10 pr-9 py-2.5 bg-slate-50 border border-slate-200 focus:border-[#1E3A8A] rounded-2xl text-xs text-slate-900 font-medium focus:outline-none focus:ring-2 focus:ring-[#1E3A8A]/20 transition-all placeholder:text-slate-400"
+            />
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery('')}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1"
+                title="Clear Search"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
+
+          {/* Quick Search Suggestion Pills */}
+          {!searchQuery && (
+            <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5 text-[11px]">
+              <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider shrink-0 flex items-center gap-1">
+                <Compass className="w-3 h-3 text-amber-500" />
+                Quick Jump:
+              </span>
+              {[
+                { label: 'John 3', book: 'John', chapter: 3 },
+                { label: 'Psalms 23', book: 'Psalms', chapter: 23 },
+                { label: 'Genesis 1', book: 'Genesis', chapter: 1 },
+                { label: 'Romans 8', book: 'Romans', chapter: 8 },
+                { label: 'Proverbs 3', book: 'Proverbs', chapter: 3 },
+                { label: '1 Cor 13', book: '1 Corinthians', chapter: 13 },
+                { label: 'Revelation 21', book: 'Revelation', chapter: 21 }
+              ].map((chip) => (
+                <button
+                  key={chip.label}
+                  type="button"
+                  onClick={() => handleJumpToBookChapter(chip.book, chip.chapter)}
+                  className="px-2.5 py-1 bg-slate-100 hover:bg-blue-50 text-slate-700 hover:text-[#1E3A8A] font-bold rounded-xl border border-slate-200/80 shrink-0 transition-all active:scale-95 text-[10px]"
+                >
+                  {chip.label}
+                </button>
+              ))}
+            </div>
           )}
         </div>
 
-        {/* Translation Selector & Book Selectors */}
+        {/* View Mode Navigation Tabs (Reader vs Saved Verses vs Highlights) */}
         {!searchQuery && (
+          <div className="flex items-center gap-1.5 p-1 bg-slate-100 rounded-2xl border border-slate-200 text-xs font-bold">
+            <button
+              type="button"
+              onClick={() => setViewMode('reader')}
+              className={`flex-1 py-2 px-3 rounded-xl transition-all flex items-center justify-center gap-1.5 ${
+                viewMode === 'reader'
+                  ? 'bg-[#1E3A8A] text-white shadow-sm'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/50'
+              }`}
+            >
+              <Book className="w-3.5 h-3.5" />
+              <span>Reader</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewMode('saved')}
+              className={`flex-1 py-2 px-3 rounded-xl transition-all flex items-center justify-center gap-1.5 ${
+                viewMode === 'saved'
+                  ? 'bg-[#1E3A8A] text-white shadow-sm'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/50'
+              }`}
+            >
+              <Bookmark className="w-3.5 h-3.5 text-amber-300" />
+              <span>Saved ({savedVerses.length})</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewMode('highlights')}
+              className={`flex-1 py-2 px-3 rounded-xl transition-all flex items-center justify-center gap-1.5 ${
+                viewMode === 'highlights'
+                  ? 'bg-[#1E3A8A] text-white shadow-sm'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/50'
+              }`}
+            >
+              <Highlighter className="w-3.5 h-3.5 text-yellow-300" />
+              <span>Highlights ({highlights.length})</span>
+            </button>
+          </div>
+        )}
+
+        {/* Translation Selector & Book Selectors (Reader mode) */}
+        {!searchQuery && viewMode === 'reader' && (
           <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-100">
             {/* Book Selector */}
             <select
@@ -262,7 +406,7 @@ export const BibleTab: React.FC<BibleTabProps> = ({
                 setSelectedBook(e.target.value);
                 setSelectedChapter(1);
               }}
-              className="flex-1 py-2 px-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-[#1E3A8A] focus:outline-none"
+              className="flex-1 py-2 px-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-[#1E3A8A] focus:outline-none focus:ring-1 focus:ring-[#1E3A8A]"
             >
               {ALL_BIBLE_BOOKS_NAMES.map((name) => (
                 <option key={name} value={name}>{name}</option>
@@ -273,7 +417,7 @@ export const BibleTab: React.FC<BibleTabProps> = ({
             <select
               value={selectedChapter}
               onChange={(e) => setSelectedChapter(Number(e.target.value))}
-              className="py-2 px-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-[#1E3A8A] focus:outline-none"
+              className="py-2 px-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-[#1E3A8A] focus:outline-none focus:ring-1 focus:ring-[#1E3A8A]"
             >
               {Array.from({ length: currentBookMeta.chapterCount || 28 }, (_, i) => i + 1).map((ch) => (
                 <option key={ch} value={ch}>Chapter {ch}</option>
@@ -312,85 +456,401 @@ export const BibleTab: React.FC<BibleTabProps> = ({
 
       {/* SEARCH RESULTS MODE */}
       {searchQuery ? (
-        <div className="space-y-3">
-          <div className="flex items-center justify-between px-1">
-            <h3 className="text-xs font-bold text-slate-700 uppercase tracking-wider">
-              Search Results ({searchResults.length})
-            </h3>
-            <button
-              onClick={() => setSearchQuery('')}
-              className="text-xs text-[#1E3A8A] font-bold hover:underline"
-            >
-              Clear Search
-            </button>
+        <div className="space-y-4 animate-fadeIn">
+          {/* BOOK & CHAPTER MATCHES SECTION */}
+          {bookSearchResults.length > 0 && (
+            <div className="space-y-3">
+              <div className="flex items-center justify-between px-1">
+                <h3 className="text-xs font-black text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
+                  <BookOpen className="w-4 h-4 text-[#1E3A8A]" />
+                  Matching Books & Chapters ({bookSearchResults.length})
+                </h3>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {bookSearchResults.map((b) => (
+                  <div
+                    key={b.bookName}
+                    className="bg-white rounded-2xl p-4 border border-slate-200/90 shadow-sm space-y-3 hover:border-blue-300 transition-all"
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <h4 className="text-sm font-black text-slate-900">{b.bookName}</h4>
+                          <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-blue-50 text-[#1E3A8A] border border-blue-100">
+                            {b.testament}
+                          </span>
+                        </div>
+                        <p className="text-[11px] font-medium text-slate-500">
+                          {b.chapterCount} Chapters available
+                        </p>
+                      </div>
+
+                      {b.suggestedChapter ? (
+                        <button
+                          onClick={() => handleJumpToBookChapter(b.bookName, b.suggestedChapter!)}
+                          className="px-3 py-1.5 bg-[#1E3A8A] hover:bg-blue-900 text-white text-xs font-bold rounded-xl shadow-xs flex items-center gap-1.5 transition-all active:scale-95 shrink-0"
+                        >
+                          <span>Go to Ch. {b.suggestedChapter}</span>
+                          <ArrowRight className="w-3.5 h-3.5 text-amber-300" />
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => handleJumpToBookChapter(b.bookName, 1)}
+                          className="px-3 py-1.5 bg-slate-100 hover:bg-blue-50 text-slate-800 hover:text-[#1E3A8A] text-xs font-bold rounded-xl border border-slate-200 flex items-center gap-1 transition-all shrink-0"
+                        >
+                          <span>Open Book</span>
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Quick Select Chapter Chips */}
+                    <div className="space-y-1.5 pt-2 border-t border-slate-100">
+                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                        Tap Chapter to Read:
+                      </span>
+                      <div className="flex items-center gap-1 overflow-x-auto no-scrollbar py-0.5">
+                        {Array.from({ length: Math.min(b.chapterCount, 50) }, (_, i) => i + 1).map((ch) => (
+                          <button
+                            key={ch}
+                            onClick={() => handleJumpToBookChapter(b.bookName, ch)}
+                            className={`px-2.5 py-1 rounded-lg text-[10px] font-bold whitespace-nowrap transition-all border ${
+                              b.suggestedChapter === ch
+                                ? 'bg-amber-400 text-slate-900 border-amber-500 font-black shadow-2xs scale-105'
+                                : 'bg-slate-50 hover:bg-blue-50 text-slate-700 hover:text-[#1E3A8A] border-slate-200'
+                            }`}
+                          >
+                            {ch}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* SCRIPTURE TEXT MATCHES SECTION */}
+          <div className="space-y-3">
+            <div className="flex items-center justify-between px-1">
+              <h3 className="text-xs font-black text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
+                <Search className="w-4 h-4 text-amber-600" />
+                Verse Text Matches ({searchResults.length})
+              </h3>
+              <button
+                onClick={() => setSearchQuery('')}
+                className="text-xs text-[#1E3A8A] font-bold hover:underline"
+              >
+                Clear Search
+              </button>
+            </div>
+
+            {searchResults.length === 0 && bookSearchResults.length === 0 ? (
+              <div className="bg-white rounded-[28px] p-8 text-center space-y-2 border border-slate-100 shadow-md">
+                <Search className="w-8 h-8 text-slate-300 mx-auto" />
+                <p className="text-sm font-semibold text-slate-700">No books or verses found matching "{searchQuery}"</p>
+                <p className="text-xs text-slate-500">Try searching for book names (e.g. "John", "Psalms"), references (e.g. "Genesis 12", "Ps 23"), or keywords like "Love", "Peace", "Faith".</p>
+                <button
+                  onClick={() => onAskAiPrompt(`Where in the Bible does it talk about ${searchQuery}?`)}
+                  className="mt-2 inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 text-[#1E3A8A] rounded-xl text-xs font-bold"
+                >
+                  <Sparkles className="w-3.5 h-3.5 text-[#D4AF37]" />
+                  Ask FaithPath AI to find verses
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {searchResults.map((res, idx) => (
+                  <div
+                    key={idx}
+                    className="bg-white rounded-2xl p-4 border border-slate-100 hover:border-blue-300 shadow-xs space-y-2 transition-all group"
+                  >
+                    <div className="flex items-center justify-between">
+                      <button
+                        onClick={() => handleJumpToBookChapter(res.bookName, res.chapter)}
+                        className="text-xs font-bold text-[#1E3A8A] hover:underline text-left"
+                      >
+                        {res.bookName} {res.chapter}:{res.verseNumber} ({preferredTranslation})
+                      </button>
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleNativeShareText(res.text, res.bookName, res.chapter, res.verseNumber);
+                          }}
+                          className="px-2.5 py-1 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200 rounded-lg text-[10px] font-bold flex items-center gap-1 transition-colors"
+                          title="Share via Native Web Share API"
+                        >
+                          <Share2 className="w-3 h-3 text-amber-600" />
+                          Share Native
+                        </button>
+                        <button
+                          onClick={() => handleJumpToBookChapter(res.bookName, res.chapter)}
+                          className="text-[10px] text-slate-400 hover:text-slate-600 font-medium"
+                        >
+                          Read Chapter →
+                        </button>
+                      </div>
+                    </div>
+                    <p 
+                      onClick={() => handleJumpToBookChapter(res.bookName, res.chapter)}
+                      className="text-xs font-serif text-slate-800 italic cursor-pointer"
+                    >
+                      "{res.text}"
+                    </p>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      ) : viewMode === 'saved' ? (
+        /* SAVED VERSES TAB */
+        <div className="bg-white rounded-[28px] sm:rounded-[32px] p-6 shadow-lg shadow-slate-200/50 border border-slate-100 space-y-4">
+          <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+            <div>
+              <h2 className="text-base font-extrabold text-slate-900 flex items-center gap-2">
+                <Bookmark className="w-4 h-4 text-amber-500 fill-amber-500" />
+                Saved Verses ({savedVerses.length})
+              </h2>
+              <p className="text-[11px] text-slate-500 font-medium">
+                Bookmarked Scriptures ready for reflection & Web Share API sharing
+              </p>
+            </div>
+            {savedVerses.length > 0 && (
+              <button
+                onClick={() => setViewMode('reader')}
+                className="text-xs font-bold text-[#1E3A8A] hover:underline"
+              >
+                Back to Reader →
+              </button>
+            )}
           </div>
 
-          {searchResults.length === 0 ? (
-            <div className="bg-white rounded-[28px] p-8 text-center space-y-2 border border-slate-100 shadow-md">
-              <Search className="w-8 h-8 text-slate-300 mx-auto" />
-              <p className="text-sm font-semibold text-slate-700">No verses found matching "{searchQuery}"</p>
-              <p className="text-xs text-slate-500">Try searching for keywords like "Love", "Peace", "Faith", or book names.</p>
+          {savedVerses.length === 0 ? (
+            <div className="py-12 text-center space-y-3">
+              <div className="w-12 h-12 rounded-2xl bg-amber-50 text-amber-600 mx-auto flex items-center justify-center">
+                <Bookmark className="w-6 h-6" />
+              </div>
+              <p className="text-sm font-bold text-slate-800">No saved verses yet</p>
+              <p className="text-xs text-slate-500 max-w-xs mx-auto">
+                Bookmark verses while reading in the Bible Reader to save them here for quick access and native sharing.
+              </p>
               <button
-                onClick={() => onAskAiPrompt(`Where in the Bible does it talk about ${searchQuery}?`)}
-                className="mt-2 inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 text-[#1E3A8A] rounded-xl text-xs font-bold"
+                onClick={() => setViewMode('reader')}
+                className="mt-2 inline-flex items-center gap-1.5 px-4 py-2 bg-[#1E3A8A] text-white rounded-xl text-xs font-bold shadow-sm"
               >
-                <Sparkles className="w-3.5 h-3.5 text-[#D4AF37]" />
-                Ask FaithPath AI to find verses
+                <Book className="w-3.5 h-3.5" />
+                Open Bible Reader
               </button>
             </div>
           ) : (
-            <div className="space-y-2">
-              {searchResults.map((res, idx) => (
+            <div className="space-y-3">
+              {savedVerses.map((sv) => (
                 <div
-                  key={idx}
-                  className="bg-white rounded-2xl p-4 border border-slate-100 hover:border-blue-300 shadow-xs space-y-2 transition-all group"
+                  key={sv.id}
+                  className="p-4 bg-amber-50/40 rounded-2xl border border-amber-200/80 hover:border-amber-300 transition-all space-y-2.5"
                 >
                   <div className="flex items-center justify-between">
-                    <button
-                      onClick={() => {
-                        setSelectedBook(res.bookName);
-                        setSelectedChapter(res.chapter);
-                        setSearchQuery('');
-                      }}
-                      className="text-xs font-bold text-[#1E3A8A] hover:underline text-left"
-                    >
-                      {res.bookName} {res.chapter}:{res.verseNumber} ({preferredTranslation})
-                    </button>
-                    <div className="flex items-center gap-1.5">
+                    <span className="text-xs font-extrabold text-[#1E3A8A] bg-blue-50 px-2.5 py-1 rounded-lg border border-blue-100">
+                      {sv.bookName} {sv.chapter}:{sv.verse} ({sv.translation || preferredTranslation})
+                    </span>
+                    <span className="text-[10px] font-bold text-slate-400">
+                      Saved {sv.dateSaved}
+                    </span>
+                  </div>
+
+                  <p className="text-xs font-serif italic text-slate-900 leading-relaxed">
+                    "{sv.text}"
+                  </p>
+
+                  <div className="pt-2 border-t border-amber-200/50 flex flex-wrap items-center justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                      {/* Native Share Button */}
                       <button
                         type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleNativeShareText(res.text, res.bookName, res.chapter, res.verseNumber);
-                        }}
-                        className="px-2 py-1 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200 rounded-lg text-[10px] font-bold flex items-center gap-1 transition-colors"
-                        title="Share via Native Share Sheet"
+                        onClick={() => handleNativeShareText(sv.text, sv.bookName, sv.chapter, sv.verse, { dateSaved: sv.dateSaved })}
+                        className="px-3 py-1.5 bg-[#1E3A8A] hover:bg-blue-900 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-xs transition-all active:scale-95"
+                        title="Share saved verse via Web Share API"
                       >
-                        <Share2 className="w-3 h-3 text-amber-600" />
-                        Share
+                        <Share2 className="w-3.5 h-3.5 text-[#D4AF37]" />
+                        <span>Share Native</span>
                       </button>
+
+                      {/* Card Customizer */}
                       <button
+                        type="button"
                         onClick={() => {
-                          setSelectedBook(res.bookName);
-                          setSelectedChapter(res.chapter);
-                          setSearchQuery('');
+                          setSelectedBook(sv.bookName);
+                          setSelectedChapter(sv.chapter);
+                          setShareModalVerse({ number: sv.verse, text: sv.text });
                         }}
-                        className="text-[10px] text-slate-400 hover:text-slate-600 font-medium"
+                        className="px-2.5 py-1.5 bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 rounded-xl text-xs font-bold flex items-center gap-1"
                       >
-                        Read Chapter →
+                        <ImageIcon className="w-3.5 h-3.5 text-blue-600" />
+                        <span>Verse Card</span>
+                      </button>
+
+                      {/* Read Chapter in Context */}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedBook(sv.bookName);
+                          setSelectedChapter(sv.chapter);
+                          setViewMode('reader');
+                        }}
+                        className="px-2.5 py-1.5 bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 rounded-xl text-xs font-bold flex items-center gap-1"
+                      >
+                        <Book className="w-3.5 h-3.5 text-slate-500" />
+                        <span>Read Chapter</span>
                       </button>
                     </div>
+
+                    {/* Unsave Button */}
+                    <button
+                      type="button"
+                      onClick={() => onSaveVerse({ bookName: sv.bookName, chapter: sv.chapter, verse: sv.verse, text: sv.text })}
+                      className="text-xs text-rose-600 hover:text-rose-800 font-bold flex items-center gap-1 p-1"
+                      title="Remove from saved"
+                    >
+                      <Bookmark className="w-3.5 h-3.5 fill-rose-600" />
+                      <span>Remove</span>
+                    </button>
                   </div>
-                  <p 
-                    onClick={() => {
-                      setSelectedBook(res.bookName);
-                      setSelectedChapter(res.chapter);
-                      setSearchQuery('');
-                    }}
-                    className="text-xs font-serif text-slate-800 italic cursor-pointer"
-                  >
-                    "{res.text}"
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      ) : viewMode === 'highlights' ? (
+        /* HIGHLIGHTED VERSES TAB */
+        <div className="bg-white rounded-[28px] sm:rounded-[32px] p-6 shadow-lg shadow-slate-200/50 border border-slate-100 space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-slate-100">
+            <div>
+              <h2 className="text-base font-extrabold text-slate-900 flex items-center gap-2">
+                <Highlighter className="w-4 h-4 text-amber-500 fill-amber-300" />
+                Highlighted Verses ({highlights.length})
+              </h2>
+              <p className="text-[11px] text-slate-500 font-medium">
+                Your highlighted Scriptures ready to share via Web Share API
+              </p>
+            </div>
+
+            {/* Filter by Color */}
+            <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl">
+              {['all', 'gold', 'blue', 'emerald', 'rose'].map((col) => (
+                <button
+                  key={col}
+                  onClick={() => setHighlightFilter(col)}
+                  className={`px-2 py-0.5 rounded-lg text-[10px] font-bold capitalize transition-all ${
+                    highlightFilter === col
+                      ? 'bg-slate-900 text-white'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  {col}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {filteredHighlights.length === 0 ? (
+            <div className="py-12 text-center space-y-3">
+              <div className="w-12 h-12 rounded-2xl bg-amber-50 text-amber-600 mx-auto flex items-center justify-center">
+                <Highlighter className="w-6 h-6" />
+              </div>
+              <p className="text-sm font-bold text-slate-800">No highlighted verses found</p>
+              <p className="text-xs text-slate-500 max-w-xs mx-auto">
+                Select color highlights while reading chapters to color-code and organize your favorite verses.
+              </p>
+              <button
+                onClick={() => setViewMode('reader')}
+                className="mt-2 inline-flex items-center gap-1.5 px-4 py-2 bg-[#1E3A8A] text-white rounded-xl text-xs font-bold shadow-sm"
+              >
+                <Book className="w-3.5 h-3.5" />
+                Open Bible Reader
+              </button>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {filteredHighlights.map((hl) => (
+                <div
+                  key={hl.id}
+                  className={`p-4 rounded-2xl border transition-all space-y-2.5 ${highlightBgClasses[hl.color] || 'bg-slate-50'}`}
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-extrabold text-[#1E3A8A] bg-white/90 px-2.5 py-1 rounded-lg border border-slate-200">
+                        {hl.bookName} {hl.chapter}:{hl.verse} ({preferredTranslation})
+                      </span>
+                      <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-white/80 border border-slate-200 capitalize text-slate-700">
+                        {hl.color}
+                      </span>
+                    </div>
+                    <span className="text-[10px] font-bold text-slate-500">
+                      {hl.date}
+                    </span>
+                  </div>
+
+                  <p className="text-xs font-serif italic text-slate-900 leading-relaxed">
+                    "{hl.text}"
                   </p>
+
+                  <div className="pt-2 border-t border-slate-200/60 flex flex-wrap items-center justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                      {/* Native Share Button */}
+                      <button
+                        type="button"
+                        onClick={() => handleNativeShareText(hl.text, hl.bookName, hl.chapter, hl.verse, { isHighlight: true, highlightColor: hl.color })}
+                        className="px-3 py-1.5 bg-[#1E3A8A] hover:bg-blue-900 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-xs transition-all active:scale-95"
+                        title="Share highlighted verse via Web Share API"
+                      >
+                        <Share2 className="w-3.5 h-3.5 text-[#D4AF37]" />
+                        <span>Share Highlight</span>
+                      </button>
+
+                      {/* Card Customizer */}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedBook(hl.bookName);
+                          setSelectedChapter(hl.chapter);
+                          setShareModalVerse({ number: hl.verse, text: hl.text });
+                        }}
+                        className="px-2.5 py-1.5 bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 rounded-xl text-xs font-bold flex items-center gap-1"
+                      >
+                        <ImageIcon className="w-3.5 h-3.5 text-blue-600" />
+                        <span>Verse Card</span>
+                      </button>
+
+                      {/* Read Chapter in Context */}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedBook(hl.bookName);
+                          setSelectedChapter(hl.chapter);
+                          setViewMode('reader');
+                        }}
+                        className="px-2.5 py-1.5 bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 rounded-xl text-xs font-bold flex items-center gap-1"
+                      >
+                        <Book className="w-3.5 h-3.5 text-slate-500" />
+                        <span>Read Chapter</span>
+                      </button>
+                    </div>
+
+                    {/* Clear Highlight */}
+                    <button
+                      type="button"
+                      onClick={() => onToggleHighlight(hl.verseId, hl.bookName, hl.chapter, hl.verse, hl.text, hl.color)}
+                      className="text-xs text-slate-500 hover:text-slate-800 font-bold flex items-center gap-1 p-1"
+                      title="Remove highlight"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                      <span>Remove</span>
+                    </button>
+                  </div>
                 </div>
               ))}
             </div>
@@ -464,16 +924,30 @@ export const BibleTab: React.FC<BibleTabProps> = ({
               <button
                 onClick={handleToggleAudio}
                 className={`flex items-center gap-1.5 px-3 py-1.5 rounded-2xl text-xs font-bold transition-all ${
-                  isReadingAudio
-                    ? 'bg-amber-500 text-white shadow-sm animate-pulse'
+                  showAudioPlayer
+                    ? 'bg-amber-500 text-slate-900 shadow-sm font-extrabold'
                     : 'bg-blue-50 text-[#1E3A8A] hover:bg-blue-100'
                 }`}
               >
-                {isReadingAudio ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
-                {isReadingAudio ? 'Stop Audio' : 'Listen'}
+                {showAudioPlayer ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
+                {showAudioPlayer ? 'Hide Audio Player' : 'Listen'}
               </button>
             </div>
           </div>
+
+          {/* Integrated AI Audio Player */}
+          {showAudioPlayer && (
+            <div className="py-1 animate-fadeIn">
+              <BibleAudioPlayer
+                bookName={selectedBook}
+                chapter={selectedChapter}
+                translation={preferredTranslation}
+                verses={currentVerses}
+                onCurrentVerseChange={(vNum) => setActiveSpokenVerseNumber(vNum)}
+                onClose={() => setShowAudioPlayer(false)}
+              />
+            </div>
+          )}
 
           {/* Verses List */}
           <div className="space-y-3.5 py-1 font-serif text-slate-800 leading-relaxed text-sm">
@@ -481,16 +955,25 @@ export const BibleTab: React.FC<BibleTabProps> = ({
               const verseKey = `${selectedBook}-${selectedChapter}-${verse.number}`;
               const isSaved = savedVerseKeys.has(verseKey);
               const highlightColor = getHighlightColor(verse.number);
+              const isSpokenVerse = activeSpokenVerseNumber === verse.number;
 
               return (
                 <div
                   key={verse.number}
                   className={`group rounded-2xl p-3 transition-all relative ${
-                    highlightColor ? highlightBgClasses[highlightColor] : 'hover:bg-slate-50/80'
+                    isSpokenVerse
+                      ? 'bg-amber-100/90 text-slate-900 ring-2 ring-amber-500 shadow-md scale-[1.01]'
+                      : highlightColor 
+                      ? highlightBgClasses[highlightColor] 
+                      : 'hover:bg-slate-50/80'
                   }`}
                 >
                   <div className="flex items-start gap-2.5">
-                    <span className="text-xs font-sans font-bold text-[#1E3A8A] bg-blue-50 px-2 py-0.5 rounded-lg mt-0.5 select-none shrink-0">
+                    <span className={`text-xs font-sans font-bold px-2 py-0.5 rounded-lg mt-0.5 select-none shrink-0 ${
+                      isSpokenVerse 
+                        ? 'bg-amber-500 text-white font-extrabold shadow-2xs' 
+                        : 'text-[#1E3A8A] bg-blue-50'
+                    }`}>
                       {verse.number}
                     </span>
                     <p className="flex-1 text-slate-900 leading-relaxed">
@@ -500,7 +983,7 @@ export const BibleTab: React.FC<BibleTabProps> = ({
 
                   {/* Quick Action Toolbar for Verse */}
                   <div className="mt-2 pt-2 flex items-center justify-between border-t border-slate-100/80 opacity-90 sm:opacity-0 group-hover:opacity-100 transition-opacity">
-                    <div className="flex items-center gap-1.5">
+                    <div className="flex items-center gap-1.5 flex-wrap">
                       {/* Highlight Colors */}
                       <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl">
                         {(['gold', 'blue', 'emerald', 'rose'] as const).map((color) => (
@@ -529,29 +1012,42 @@ export const BibleTab: React.FC<BibleTabProps> = ({
                         className={`p-1.5 rounded-lg text-xs flex items-center gap-0.5 font-sans font-semibold ${
                           isSaved ? 'text-amber-600' : 'text-slate-400 hover:text-slate-600'
                         }`}
+                        title={isSaved ? 'Saved in bookmarks' : 'Save verse'}
                       >
                         <Bookmark className={`w-3.5 h-3.5 ${isSaved ? 'fill-amber-600' : ''}`} />
                       </button>
 
                       {/* Web Share API Direct Trigger */}
                       <button
-                        onClick={() => handleNativeShareText(verse.text, selectedBook, selectedChapter, verse.number)}
-                        className="p-1.5 rounded-lg text-xs text-amber-600 hover:bg-amber-50 font-sans flex items-center gap-0.5 font-bold"
+                        onClick={() => handleNativeShareText(
+                          verse.text, 
+                          selectedBook, 
+                          selectedChapter, 
+                          verse.number,
+                          {
+                            isHighlight: !!highlightColor,
+                            highlightColor: highlightColor || undefined,
+                            dateSaved: isSaved ? 'Saved' : undefined
+                          }
+                        )}
+                        className="p-1.5 rounded-lg text-xs text-amber-600 hover:bg-amber-50 font-sans flex items-center gap-1 font-bold"
                         title="Share verse directly via Mobile Share Sheet"
                       >
-                        <Share2 className="w-3.5 h-3.5" />
+                        <Share2 className="w-3.5 h-3.5 text-amber-600" />
+                        <span className="text-[10px]">Share</span>
                       </button>
 
                       {/* Copy Button */}
                       <button
                         onClick={() => {
-                          navigator.clipboard.writeText(`"${verse.text}" — ${selectedBook} ${selectedChapter}:${verse.number} (${preferredTranslation})`);
+                          const appUrl = window.location.href;
+                          navigator.clipboard.writeText(`"${verse.text}" — ${selectedBook} ${selectedChapter}:${verse.number} (${preferredTranslation})\n\nFaithPath AI: ${appUrl}`);
                           setCopiedVerseNum(verse.number);
-                          triggerToast('Copied to clipboard!');
+                          triggerToast('Copied to clipboard with App Link!');
                           setTimeout(() => setCopiedVerseNum(null), 1500);
                         }}
                         className="p-1.5 rounded-lg text-xs text-slate-400 hover:text-slate-600 font-sans flex items-center gap-0.5"
-                        title="Copy verse text"
+                        title="Copy verse text with link"
                       >
                         {copiedVerseNum === verse.number ? (
                           <span className="text-[10px] text-emerald-600 font-bold">Copied!</span>
@@ -621,8 +1117,8 @@ export const BibleTab: React.FC<BibleTabProps> = ({
                 <ImageIcon className="w-4 h-4" />
               </div>
               <div>
-                <h3 className="text-sm font-extrabold text-slate-900">Share Verse as Image</h3>
-                <p className="text-[11px] text-slate-500">Pick a theme & download or share verse card</p>
+                <h3 className="text-sm font-extrabold text-slate-900">Share Verse & App Link</h3>
+                <p className="text-[11px] text-slate-500">Pick a theme & share via Web Share API</p>
               </div>
             </div>
 
@@ -717,24 +1213,10 @@ export const BibleTab: React.FC<BibleTabProps> = ({
                 className="w-full py-3 bg-[#1E3A8A] hover:bg-blue-900 text-white font-extrabold text-xs rounded-2xl shadow-md flex items-center justify-center gap-2 transition-all active:scale-98"
               >
                 <Share2 className="w-4 h-4 text-[#D4AF37]" />
-                Share Card via Mobile Share Sheet
+                Share Image Card via Web Share API
               </button>
 
               <div className="flex gap-2">
-                {/* Secondary Action: Download PNG */}
-                <button
-                  type="button"
-                  onClick={() => {
-                    const ref = `${selectedBook} ${selectedChapter}:${shareModalVerse.number} (${preferredTranslation})`;
-                    downloadVerseCardImage(shareModalVerse.text, ref, selectedCardTheme);
-                    triggerToast('Image card downloaded!');
-                  }}
-                  className="flex-1 py-2.5 bg-amber-50 hover:bg-amber-100 text-amber-900 font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 border border-amber-200"
-                >
-                  <Download className="w-3.5 h-3.5 text-amber-700" />
-                  Save PNG
-                </button>
-
                 {/* Secondary Action: Native Share Text */}
                 <button
                   type="button"
@@ -743,13 +1225,28 @@ export const BibleTab: React.FC<BibleTabProps> = ({
                       shareModalVerse.text,
                       selectedBook,
                       selectedChapter,
-                      shareModalVerse.number
+                      shareModalVerse.number,
+                      { dateSaved: savedVerseKeys.has(`${selectedBook}-${selectedChapter}-${shareModalVerse.number}`) ? 'Saved' : undefined }
                     );
+                  }}
+                  className="flex-1 py-2.5 bg-amber-50 hover:bg-amber-100 text-amber-900 font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 border border-amber-200"
+                >
+                  <Share2 className="w-3.5 h-3.5 text-amber-700" />
+                  Share Text & Link
+                </button>
+
+                {/* Secondary Action: Download PNG */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    const ref = `${selectedBook} ${selectedChapter}:${shareModalVerse.number} (${preferredTranslation})`;
+                    downloadVerseCardImage(shareModalVerse.text, ref, selectedCardTheme);
+                    triggerToast('Image card downloaded!');
                   }}
                   className="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs rounded-xl flex items-center justify-center gap-1.5"
                 >
-                  <Share2 className="w-3.5 h-3.5 text-slate-600" />
-                  Share Text
+                  <Download className="w-3.5 h-3.5 text-slate-600" />
+                  Save PNG
                 </button>
               </div>
             </div>
@@ -766,6 +1263,7 @@ export const BibleTab: React.FC<BibleTabProps> = ({
         onSelectChapter={(b, c) => {
           setSelectedBook(b);
           setSelectedChapter(c);
+          setViewMode('reader');
         }}
       />
 
@@ -778,6 +1276,7 @@ export const BibleTab: React.FC<BibleTabProps> = ({
         onSelectBookChapter={(b, c) => {
           setSelectedBook(b);
           setSelectedChapter(c);
+          setViewMode('reader');
         }}
         onTriggerToast={triggerToast}
       />
