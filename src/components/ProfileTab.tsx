@@ -21,10 +21,14 @@ import {
   Wifi,
   WifiOff,
   Download,
-  RefreshCw
+  RefreshCw,
+  Shield,
+  ExternalLink,
+  Smartphone
 } from 'lucide-react';
 import { UserProfile, SavedVerse, ReadingPlan, NotificationSetting, BibleTranslation, PrayerEntry } from '../types';
 import { offlineStorage } from '../services/offlineStorageService';
+import { PrivacyPolicy } from './PrivacyPolicy';
 
 interface ProfileTabProps {
   user: UserProfile;
@@ -57,7 +61,8 @@ export const ProfileTab: React.FC<ProfileTabProps> = ({
   preferredTranslation,
   onChangeTranslation
 }) => {
-  const [activeSection, setActiveSection] = useState<'overview' | 'saved' | 'plans' | 'settings'>('overview');
+  const [activeSection, setActiveSection] = useState<'overview' | 'saved' | 'plans' | 'settings' | 'privacy'>('overview');
+  const [showPrivacyModal, setShowPrivacyModal] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
   const [exportSuccessMsg, setExportSuccessMsg] = useState<string | null>(null);
 
@@ -82,7 +87,7 @@ export const ProfileTab: React.FC<ProfileTabProps> = ({
 
     const exportPayload = {
       exportMetadata: {
-        appName: 'FaithPath AI',
+        appName: 'FaithConnect',
         exportVersion: '1.0',
         exportedAt: new Date().toISOString(),
         totalItemsCount: savedVerses.length + activePrayers.length + readingPlans.length + savedHighlights.length,
@@ -137,11 +142,17 @@ export const ProfileTab: React.FC<ProfileTabProps> = ({
         <div className="flex items-start justify-between">
           <div className="flex items-center gap-3.5">
             <div className="relative">
-              <img
-                src={user.photoUrl || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=200"}
-                alt={user.name}
-                className="w-14 h-14 rounded-full object-cover border-2 border-[#D4AF37] shadow-md"
-              />
+              {user.photoUrl ? (
+                <img
+                  src={user.photoUrl}
+                  alt={user.name || "User profile"}
+                  className="w-14 h-14 rounded-full object-cover border-2 border-[#D4AF37] shadow-md"
+                />
+              ) : (
+                <div className="w-14 h-14 rounded-full bg-blue-900 border-2 border-[#D4AF37] flex items-center justify-center text-[#D4AF37] shadow-md">
+                  <User className="w-7 h-7" />
+                </div>
+              )}
               {user.isPremium && (
                 <div className="absolute -bottom-1 -right-1 bg-[#D4AF37] text-[#1E3A8A] p-1 rounded-full shadow-xs" title="Premium Active">
                   <Crown className="w-3.5 h-3.5" />
@@ -151,13 +162,13 @@ export const ProfileTab: React.FC<ProfileTabProps> = ({
 
             <div>
               <div className="flex items-center gap-1.5">
-                <h2 className="text-lg font-extrabold text-white">{user.name}</h2>
+                <h2 className="text-lg font-extrabold text-white">{user.name || 'FaithPath Pilgrim'}</h2>
                 <span className="text-[10px] font-black bg-gradient-to-r from-[#D4AF37] to-amber-300 text-[#1E3A8A] px-2.5 py-0.5 rounded-full shadow-xs border border-amber-300/40">
                   30-DAY FREE TRIAL
                 </span>
               </div>
-              <p className="text-xs text-blue-200">{user.email || 'Guest User'}</p>
-              <p className="text-[10px] text-blue-300 mt-0.5">Member since {user.joinedDate}</p>
+              <p className="text-xs text-blue-200">{user.email || 'Sign in or personalize your profile'}</p>
+              <p className="text-[10px] text-blue-300 mt-0.5">Member since {user.joinedDate || 'August 2026'}</p>
             </div>
           </div>
 
@@ -272,6 +283,14 @@ export const ProfileTab: React.FC<ProfileTabProps> = ({
           }`}
         >
           Settings
+        </button>
+        <button
+          onClick={() => setActiveSection('privacy')}
+          className={`flex-1 py-2 text-xs font-bold rounded-xl transition-colors ${
+            activeSection === 'privacy' ? 'bg-[#1E3A8A] text-white' : 'text-slate-600 hover:text-slate-900'
+          }`}
+        >
+          Privacy
         </button>
       </div>
 
@@ -542,6 +561,63 @@ export const ProfileTab: React.FC<ProfileTabProps> = ({
                 </select>
               </div>
 
+              {/* Push Notifications Permission Requester */}
+              <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                <div>
+                  <p className="font-bold text-slate-900">System Notification Permissions</p>
+                  <p className="text-[10px] text-slate-500">Allow browser & OS push alerts for daily verses.</p>
+                </div>
+                <button
+                  onClick={() => {
+                    if ('Notification' in window) {
+                      Notification.requestPermission().then(permission => {
+                        if (permission === 'granted') {
+                          console.log('The user accepted');
+                          // Check for ServiceWorker registration showNotification with actions support
+                          if ('serviceWorker' in navigator) {
+                            navigator.serviceWorker.ready.then(registration => {
+                              registration.showNotification("Your content is ready", {
+                                body: "Your content is ready to be viewed. View it now?",
+                                icon: "https://images.unsplash.com/photo-1507692049790-de58290a4334?auto=format&fit=crop&q=80&w=192",
+                                // @ts-expect-error actions is standard in ServiceWorker NotificationOptions
+                                actions: [
+                                  { action: "view", title: "View" },
+                                  { action: "dismiss", title: "Dismiss" }
+                                ]
+                              });
+                            }).catch(() => {
+                              try {
+                                new Notification("Your content is ready", {
+                                  body: "Your content is ready to be viewed. View it now?",
+                                  icon: "https://images.unsplash.com/photo-1507692049790-de58290a4334?auto=format&fit=crop&q=80&w=192"
+                                });
+                              } catch (e) {}
+                            });
+                          } else {
+                            try {
+                              new Notification("Your content is ready", {
+                                body: "Your content is ready to be viewed. View it now?",
+                                icon: "https://images.unsplash.com/photo-1507692049790-de58290a4334?auto=format&fit=crop&q=80&w=192"
+                              });
+                            } catch (e) {}
+                          }
+                          onUpdateNotifications({ dailyVerseEnabled: true, prayerReminderEnabled: true });
+                        } else {
+                          console.log('Notification permission:', permission);
+                        }
+                      }).catch(e => {
+                        console.error('Error requesting notification permission', e);
+                      });
+                    } else {
+                      alert('Web Notifications API is not supported in this browser environment.');
+                    }
+                  }}
+                  className="px-3 py-1.5 bg-[#1E3A8A] text-white hover:bg-blue-900 font-extrabold text-[11px] rounded-lg shadow-xs transition-colors"
+                >
+                  Enable & Test
+                </button>
+              </div>
+
               {/* Daily Verse Notification */}
               <div className="flex items-center justify-between pb-3 border-b border-slate-100">
                 <div>
@@ -570,6 +646,42 @@ export const ProfileTab: React.FC<ProfileTabProps> = ({
                 />
               </div>
 
+              {/* Privacy Policy & Terms */}
+              <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                <div>
+                  <p className="font-bold text-slate-900">Privacy & Data Security</p>
+                  <p className="text-[10px] text-slate-500">Read our strict user data protection pledge.</p>
+                </div>
+                <button
+                  onClick={() => setActiveSection('privacy')}
+                  className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-[11px] rounded-lg transition-colors flex items-center gap-1"
+                >
+                  <Shield className="w-3.5 h-3.5 text-[#0d4c73]" />
+                  <span>View Policy</span>
+                </button>
+              </div>
+
+              {/* Android Package & Bundle Download */}
+              <div className="p-3.5 bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-200/80 rounded-xl space-y-2">
+                <div className="flex items-start gap-2.5">
+                  <Smartphone className="w-4 h-4 text-[#0d4c73] shrink-0 mt-0.5" />
+                  <div>
+                    <h4 className="text-xs font-bold text-slate-900">Google Play Android Package (.ZIP)</h4>
+                    <p className="text-[10px] text-slate-600 leading-normal">
+                      Download the complete Android Gradle project with icons and manifest configured for <strong>com.faithconnectapp.live</strong>.
+                    </p>
+                  </div>
+                </div>
+                <a
+                  href="/api/download-android-project"
+                  download="faithconnect-android-package.zip"
+                  className="w-full py-2 bg-[#0d4c73] hover:bg-[#082f49] text-white font-bold rounded-lg text-xs flex items-center justify-center gap-1.5 transition-colors shadow-xs"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  <span>Download Android Project (.ZIP)</span>
+                </a>
+              </div>
+
               {/* Reset App State */}
               <button
                 onClick={() => {
@@ -585,6 +697,27 @@ export const ProfileTab: React.FC<ProfileTabProps> = ({
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* SECTION 5: PRIVACY POLICY & COMPLIANCE */}
+      {activeSection === 'privacy' && (
+        <div className="space-y-3 animate-fade-in">
+          <div className="flex items-center justify-between px-1">
+            <h3 className="text-xs font-extrabold text-slate-800 uppercase tracking-wider">
+              Legal & Privacy Compliance
+            </h3>
+            <a
+              href="/privacy"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-xs text-[#0d4c73] font-bold hover:underline flex items-center gap-1"
+            >
+              <span>Open in Browser</span>
+              <ExternalLink className="w-3 h-3" />
+            </a>
+          </div>
+          <PrivacyPolicy />
         </div>
       )}
     </div>

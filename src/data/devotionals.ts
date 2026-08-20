@@ -187,32 +187,75 @@ export function getRandomScripture(currentReference?: string) {
   return candidates[randomIndex] || RANDOM_SCRIPTURES[0];
 }
 
-export const DAILY_VERSE_TRANSLATIONS: Record<string, { reference: string; text: string; translation: BibleTranslation; context: string }> = {
+export const DAILY_VERSE_TRANSLATIONS: Record<string, { reference: string; text: string; translation: BibleTranslation; context: string; language: string }> = {
   NIV: {
     reference: "Romans 8:28",
     text: "And we know that in all things God works for the good of those who love him, who have been called according to his purpose.",
     translation: "NIV",
+    language: "English",
     context: "A reminder of divine sovereignty and unwavering love during life's triumphs and trials."
   },
   KJV: {
     reference: "Romans 8:28",
     text: "And we know that all things work together for good to them that love God, to them who are the called according to his purpose.",
     translation: "KJV",
-    context: "A reminder of divine sovereignty and unwavering love during life's triumphs and trials."
+    language: "English",
+    context: "A classic reminder of divine sovereignty and unwavering love."
   },
   ESV: {
     reference: "Romans 8:28",
     text: "And we know that for those who love God all things work together for good, for those who are called according to his purpose.",
     translation: "ESV",
+    language: "English",
     context: "A reminder of divine sovereignty and unwavering love during life's triumphs and trials."
   },
   WEB: {
     reference: "Romans 8:28",
     text: "We know that all things work together for good for those who love God, to those who are called according to his purpose.",
     translation: "WEB",
+    language: "English",
     context: "A reminder of divine sovereignty and unwavering love during life's triumphs and trials."
+  },
+  RVR1960: {
+    reference: "Romanos 8:28",
+    text: "Y sabemos que a los que aman a Dios, todas las cosas les ayudan a bien, esto es, a los que conforme a su propósito son llamados.",
+    translation: "RVR1960",
+    language: "Español (Reina-Valera 1960)",
+    context: "Un recordatorio de la soberanía divina y el amor incondicional en todo momento."
+  },
+  ARC: {
+    reference: "Romanos 8:28",
+    text: "E sabemos que todas as coisas cooperam para o bem daqueles que amam a Deus, daqueles que são chamados segundo o seu propósito.",
+    translation: "ARC",
+    language: "Português (Almeida Revista e Corrigida)",
+    context: "Um poderoso lembrete da fidelidade e soberania do Senhor para com Seus filhos."
+  },
+  LSG: {
+    reference: "Romains 8:28",
+    text: "Nous savons, du reste, que toutes choses concourent au bien de ceux qui aiment Dieu, de ceux qui sont appelés selon son dessein.",
+    translation: "LSG",
+    language: "Français (Louis Segond 1910)",
+    context: "Un rappel de la bonté parfaite de Dieu envers ceux qui marchent selon Sa volonté."
+  },
+  LUT: {
+    reference: "Römer 8:28",
+    text: "Wir wissen aber, dass denen, die Gott lieben, alle Dinge zum Besten dienen, denen, die nach seinem Ratschluss berufen sind.",
+    translation: "LUT",
+    language: "Deutsch (Lutherbibel 2017)",
+    context: "Eine ermutigende Zusage von Gottes Treue und vollkommener Fürsorge."
   }
 };
+
+export const TRANSLATION_OPTIONS: { id: BibleTranslation; label: string; lang: string; flag: string }[] = [
+  { id: 'NIV', label: 'NIV (New International Version)', lang: 'English', flag: '🇺🇸' },
+  { id: 'KJV', label: 'KJV (King James Version)', lang: 'English', flag: '🇬🇧' },
+  { id: 'ESV', label: 'ESV (English Standard Version)', lang: 'English', flag: '🇺🇸' },
+  { id: 'WEB', label: 'WEB (World English Bible)', lang: 'English', flag: '🌐' },
+  { id: 'RVR1960', label: 'RVR1960 (Reina-Valera 1960)', lang: 'Español', flag: '🇪🇸' },
+  { id: 'ARC', label: 'ARC (Almeida Revista e Corrigida)', lang: 'Português', flag: '🇧🇷' },
+  { id: 'LSG', label: 'LSG (Louis Segond 1910)', lang: 'Français', flag: '🇫🇷' },
+  { id: 'LUT', label: 'LUT (Lutherbibel 2017)', lang: 'Deutsch', flag: '🇩🇪' }
+];
 
 export function getDailyVerse(translation: BibleTranslation = 'NIV') {
   return DAILY_VERSE_TRANSLATIONS[translation] || DAILY_VERSE_TRANSLATIONS.NIV;

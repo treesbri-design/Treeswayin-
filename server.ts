@@ -1,5 +1,7 @@
 import express from "express";
 import path from "path";
+import fs from "fs";
+import JSZip from "jszip";
 import { createServer as createViteServer } from "vite";
 import { GoogleGenAI } from "@google/genai";
 import dotenv from "dotenv";
@@ -11,6 +13,10 @@ async function startServer() {
   const PORT = 3000;
 
   app.use(express.json());
+
+  // In-memory cache to prevent burning API quota on repeated widget loads
+  const prayerPromptCache = new Map<string, { data: any; expiresAt: number }>();
+  const devotionalCache = new Map<string, { data: any; expiresAt: number }>();
 
   // Initialize Gemini AI SDK server-side
   const getGenAI = () => {
@@ -29,6 +35,198 @@ async function startServer() {
   // Health check endpoint
   app.get("/api/health", (_req, res) => {
     res.json({ status: "ok", aiEnabled: !!process.env.GEMINI_API_KEY });
+  });
+
+  // Serve real binary PNG icons & screenshots with explicit image/png Content-Type
+  const publicDir = path.join(process.cwd(), "public");
+
+  // Manifest endpoint with proper application/manifest+json MIME type & CORS
+  app.get(["/manifest.json", "/manifest.webmanifest"], (_req, res) => {
+    res.setHeader("Content-Type", "application/manifest+json; charset=utf-8");
+    res.setHeader("Access-Control-Allow-Origin", "*");
+    res.setHeader("Access-Control-Allow-Methods", "GET, OPTIONS");
+    res.setHeader("Cache-Control", "public, max-age=3600");
+    res.sendFile(path.join(publicDir, "manifest.json"));
+  });
+
+  // Digital Asset Links for Android TWA verification (removes browser URL bar)
+  app.get(["/.well-known/assetlinks.json", "/.well-known/assetlinks"], (_req, res) => {
+    res.setHeader("Content-Type", "application/json; charset=utf-8");
+    res.setHeader("Access-Control-Allow-Origin", "*");
+    res.setHeader("Access-Control-Allow-Methods", "GET, OPTIONS");
+    res.setHeader("Cache-Control", "public, max-age=3600");
+    const assetlinksFile = path.join(publicDir, ".well-known", "assetlinks.json");
+    if (fs.existsSync(assetlinksFile)) {
+      res.sendFile(assetlinksFile);
+    } else {
+      res.json([
+        {
+          relation: ["delegate_permission/common.handle_all_urls"],
+          target: {
+            namespace: "android_app",
+            package_name: "com.faithconnectapp.live",
+            sha256_cert_fingerprints: [
+              "AB:63:68:9D:76:40:F9:F3:AE:B3:1F:AF:E0:8F:FC:65:E7:0D:A8:92:48:04:D1:B8:79:0E:6C:9A:90:C7:42:E3"
+            ]
+          }
+        }
+      ]);
+    }
+  });
+
+  // Service worker endpoint with correct application/javascript and Service-Worker-Allowed header
+  app.get(["/sw.js", "/service-worker.js"], (_req, res) => {
+    res.setHeader("Content-Type", "application/javascript; charset=utf-8");
+    res.setHeader("Service-Worker-Allowed", "/");
+    res.setHeader("Access-Control-Allow-Origin", "*");
+    res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+    res.sendFile(path.join(publicDir, "sw.js"));
+  });
+
+  // Permissive CORS and asset headers for all public and image routes
+  app.use((req, res, next) => {
+    res.setHeader("Access-Control-Allow-Origin", "*");
+    res.setHeader("Access-Control-Allow-Methods", "GET, HEAD, OPTIONS");
+    res.setHeader("Access-Control-Allow-Headers", "*");
+    res.setHeader("Cross-Origin-Resource-Policy", "cross-origin");
+    if (req.method === "OPTIONS") {
+      return res.status(200).end();
+    }
+    next();
+  });
+
+  // Serve static files from /public with proper headers
+  app.use(express.static(publicDir, {
+    setHeaders: (res, filePath) => {
+      res.setHeader("Access-Control-Allow-Origin", "*");
+      res.setHeader("Cross-Origin-Resource-Policy", "cross-origin");
+      if (filePath.endsWith(".png")) {
+        res.setHeader("Content-Type", "image/png");
+      } else if (filePath.endsWith(".jpg") || filePath.endsWith(".jpeg")) {
+        res.setHeader("Content-Type", "image/jpeg");
+      } else if (filePath.endsWith(".svg")) {
+        res.setHeader("Content-Type", "image/svg+xml");
+      } else if (filePath.endsWith(".json") || filePath.endsWith(".webmanifest")) {
+        res.setHeader("Content-Type", "application/manifest+json; charset=utf-8");
+      }
+    }
+  }));
+
+  // Explicit handlers for icons & screenshots with cross-origin headers
+  app.get([
+    "/favicon-192x192.png", 
+    "/favicon-512x512.png", 
+    "/icon-192.png", 
+    "/icon-512.png",
+    "/screenshot-1.png",
+    "/screenshot-2.png",
+    "/screenshot-3.png",
+    "/screenshot-4.png"
+  ], (req, res) => {
+    const filename = path.basename(req.path);
+    const filePath = path.join(publicDir, filename);
+    res.setHeader("Content-Type", "image/png");
+    res.setHeader("Access-Control-Allow-Origin", "*");
+    res.setHeader("Cross-Origin-Resource-Policy", "cross-origin");
+    res.setHeader("Cache-Control", "public, max-age=86400");
+    res.sendFile(filePath);
+  });
+
+  // Dynamic PWA Screenshots for Google Play / PWABuilder App Store Listing
+  app.get("/screenshots/:name", (req, res) => {
+    const { name } = req.params;
+    let title = "FaithPath AI - Bible & Prayer";
+    let subtitle = "Grow closer to God every day";
+    let badge = "HOME & DEVOTIONALS";
+    let color1 = "#0d4c73";
+    let color2 = "#1E3A8A";
+
+    if (name.includes("1") || name.includes("home")) {
+      title = "Daily Verse & Spiritual Community";
+      subtitle = "Encouraging scripture, community fellowship & prayer wall";
+      badge = "SCREENSHOT 1 • HOME";
+    } else if (name.includes("2") || name.includes("prayer") || name.includes("journal")) {
+      title = "Prayer Journal & Analytics";
+      subtitle = "Track answered prayers, active requests & monthly growth";
+      badge = "SCREENSHOT 2 • PRAYER JOURNAL";
+      color1 = "#1E3A8A";
+      color2 = "#064e3b";
+    } else if (name.includes("3") || name.includes("bible") || name.includes("reader")) {
+      title = "Multi-Language Bible Reader";
+      subtitle = "NIV, KJV, ESV, WEB, Spanish RVR1960, Portuguese ARC & more";
+      badge = "SCREENSHOT 3 • SCRIPTURE READER";
+      color1 = "#0f172a";
+      color2 = "#1e293b";
+    } else if (name.includes("4") || name.includes("ai") || name.includes("lessons")) {
+      title = "FaithAI Spiritual Guide & Lessons";
+      subtitle = "Biblical commentary, Sunday school curricula & audio prayers";
+      badge = "SCREENSHOT 4 • FAITH AI & LESSONS";
+      color1 = "#1e1b4b";
+      color2 = "#312e81";
+    }
+
+    const svgScreenshot = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1080 1920" width="1080" height="1920">
+      <defs>
+        <linearGradient id="bgGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" stop-color="${color1}"/>
+          <stop offset="60%" stop-color="${color2}"/>
+          <stop offset="100%" stop-color="#020617"/>
+        </linearGradient>
+        <linearGradient id="goldText" x1="0%" y1="0%" x2="100%" y2="0%">
+          <stop offset="0%" stop-color="#F59E0B"/>
+          <stop offset="100%" stop-color="#D4AF37"/>
+        </linearGradient>
+      </defs>
+      <!-- Background -->
+      <rect width="1080" height="1920" fill="url(#bgGrad)"/>
+      
+      <!-- Top App Bar -->
+      <rect x="60" y="80" width="960" height="110" rx="32" fill="white" fill-opacity="0.1" stroke="white" stroke-opacity="0.2"/>
+      <text x="120" y="150" fill="#D4AF37" font-family="system-ui, -apple-system, sans-serif" font-size="44" font-weight="900">✝ FaithPath AI</text>
+      <rect x="760" y="105" width="220" height="60" rx="20" fill="#F59E0B" fill-opacity="0.2"/>
+      <text x="800" y="146" fill="#FDE68A" font-family="system-ui, -apple-system, sans-serif" font-size="28" font-weight="bold">🔥 7d Streak</text>
+
+      <!-- Badge -->
+      <rect x="60" y="240" width="520" height="60" rx="30" fill="white" fill-opacity="0.15" stroke="white" stroke-opacity="0.3"/>
+      <text x="90" y="280" fill="#FDE68A" font-family="system-ui, -apple-system, sans-serif" font-size="24" font-weight="900" letter-spacing="2">${badge}</text>
+
+      <!-- Main Headline -->
+      <text x="60" y="380" fill="white" font-family="system-ui, -apple-system, sans-serif" font-size="64" font-weight="900">${title}</text>
+      <text x="60" y="445" fill="#94A3B8" font-family="system-ui, -apple-system, sans-serif" font-size="34" font-weight="500">${subtitle}</text>
+
+      <!-- Hero Card Representation -->
+      <rect x="60" y="520" width="960" height="1240" rx="48" fill="#F8FAFC" stroke="#E2E8F0" stroke-width="4"/>
+      
+      <!-- Inner Card Top -->
+      <rect x="110" y="580" width="860" height="320" rx="36" fill="#1E3A8A"/>
+      <text x="160" y="660" fill="#D4AF37" font-family="system-ui, -apple-system, sans-serif" font-size="26" font-weight="bold" letter-spacing="2">VERSE OF THE DAY</text>
+      <text x="160" y="730" fill="white" font-family="Georgia, serif" font-size="36" font-style="italic">"And we know that in all things God works</text>
+      <text x="160" y="780" fill="white" font-family="Georgia, serif" font-size="36" font-style="italic">for the good of those who love Him..."</text>
+      <text x="160" y="850" fill="#93C5FD" font-family="system-ui, -apple-system, sans-serif" font-size="28" font-weight="bold">— Romans 8:28 (NIV / RVR1960 / ARC / LSG / LUT)</text>
+
+      <!-- Feature Blocks -->
+      <rect x="110" y="940" width="410" height="340" rx="32" fill="#F0FDF4" stroke="#BBF7D0" stroke-width="3"/>
+      <text x="150" y="1010" fill="#166534" font-family="system-ui, -apple-system, sans-serif" font-size="28" font-weight="900">✓ Answered Prayers</text>
+      <text x="150" y="1120" fill="#15803D" font-family="system-ui, -apple-system, sans-serif" font-size="84" font-weight="900">50%</text>
+      <text x="150" y="1220" fill="#166534" font-family="system-ui, -apple-system, sans-serif" font-size="24" font-weight="bold">Fulfillment Rate Tracked</text>
+
+      <rect x="560" y="940" width="410" height="340" rx="32" fill="#FEF3C7" stroke="#FDE68A" stroke-width="3"/>
+      <text x="600" y="1010" fill="#92400E" font-family="system-ui, -apple-system, sans-serif" font-size="28" font-weight="900">🎧 Audio Narrator</text>
+      <text x="600" y="1120" fill="#B45309" font-family="system-ui, -apple-system, sans-serif" font-size="84" font-weight="900">TTS</text>
+      <text x="600" y="1220" fill="#92400E" font-family="system-ui, -apple-system, sans-serif" font-size="24" font-weight="bold">Voice Narration & Chants</text>
+
+      <!-- Bottom Scripture Box -->
+      <rect x="110" y="1320" width="860" height="380" rx="36" fill="white" stroke="#E2E8F0" stroke-width="3"/>
+      <text x="160" y="1400" fill="#1E3A8A" font-family="system-ui, -apple-system, sans-serif" font-size="32" font-weight="bold">📖 Multi-Language Holy Bible</text>
+      <text x="160" y="1460" fill="#475569" font-family="system-ui, -apple-system, sans-serif" font-size="26">Read Scripture in English, Spanish (Reina-Valera 1960),</text>
+      <text x="160" y="1505" fill="#475569" font-family="system-ui, -apple-system, sans-serif" font-size="26">Portuguese (ARC), French (LSG), and German (Lutherbibel).</text>
+      <rect x="160" y="1560" width="300" height="80" rx="24" fill="#1E3A8A"/>
+      <text x="210" y="1610" fill="white" font-family="system-ui, -apple-system, sans-serif" font-size="28" font-weight="bold">Read Chapter →</text>
+    </svg>`;
+
+    res.setHeader('Content-Type', 'image/svg+xml');
+    res.setHeader('Cache-Control', 'public, max-age=86400');
+    res.send(svgScreenshot);
   });
 
   // AI Chat Endpoint for FaithPath AI Bible Assistant
@@ -372,12 +570,21 @@ Return JSON format:
   app.post("/api/ai/daily-prayer-prompt", async (req, res) => {
     try {
       const { category, userFocus } = req.body;
+      const chosenCategory = category || "Gratitude & Peace";
+      const cacheKey = `${chosenCategory}_${userFocus || 'default'}`;
+
+      // Check cache (1-hour cache per category to conserve API quota)
+      const cached = prayerPromptCache.get(cacheKey);
+      if (cached && Date.now() < cached.expiresAt) {
+        return res.json(cached.data);
+      }
+
       const ai = getGenAI();
 
-      const chosenCategory = category || "Gratitude & Peace";
-
       if (!ai) {
-        return res.json(getFallbackDailyPrayerPrompt(chosenCategory));
+        const fallback = getFallbackDailyPrayerPrompt(chosenCategory);
+        prayerPromptCache.set(cacheKey, { data: fallback, expiresAt: Date.now() + 3600000 });
+        return res.json(fallback);
       }
 
       const prompt = `You are a compassionate Christian pastor and prayer leader.
@@ -411,14 +618,369 @@ Return JSON format:
           },
         });
 
-        res.json(JSON.parse(response.text || "{}"));
+        const parsed = JSON.parse(response.text || "{}");
+        if (parsed.theme && parsed.prayerStarter) {
+          prayerPromptCache.set(cacheKey, { data: parsed, expiresAt: Date.now() + 3600000 });
+          return res.json(parsed);
+        }
+        throw new Error("Invalid format from model");
       } catch (geminiError) {
-        console.warn("Gemini API error in prayer prompt, returning fallback:", geminiError);
-        res.json(getFallbackDailyPrayerPrompt(chosenCategory));
+        // Gracefully return rich pastor-curated daily prompt on quota or API rate limits
+        const fallback = getFallbackDailyPrayerPrompt(chosenCategory);
+        prayerPromptCache.set(cacheKey, { data: fallback, expiresAt: Date.now() + 600000 });
+        res.json(fallback);
       }
     } catch (error: any) {
       console.error("Error in /api/ai/daily-prayer-prompt:", error);
-      res.status(500).json({ error: "Failed to generate daily prayer prompt" });
+      res.json(getFallbackDailyPrayerPrompt("Gratitude & Peace"));
+    }
+  });
+
+  // Dedicated Privacy Policy Route (compliant with Google Play Developer Policy)
+  app.get(["/privacy", "/privacy-policy", "/privacy.html"], (_req, res) => {
+    res.setHeader("Content-Type", "text/html; charset=utf-8");
+    res.setHeader("Access-Control-Allow-Origin", "*");
+    res.send(`<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Privacy Policy - FaithConnect</title>
+  <meta name="description" content="Privacy Policy for FaithConnect Christian Mobile & Web Application. Learn how we protect your personal faith data and prayers.">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="icon" href="/favicon-192x192.png" type="image/png">
+</head>
+<body class="bg-slate-50 text-slate-800 antialiased font-sans min-h-screen py-10 px-4 sm:px-6">
+  <div class="max-w-3xl mx-auto bg-white rounded-3xl shadow-xl border border-slate-200/80 overflow-hidden">
+    
+    <!-- Hero Header -->
+    <div class="bg-gradient-to-r from-[#0d4c73] to-[#082f49] p-8 text-white">
+      <div class="flex items-center gap-3 mb-3">
+        <div class="w-12 h-12 rounded-2xl bg-white/10 backdrop-blur-md flex items-center justify-center border border-white/20">
+          <svg class="w-6 h-6 text-amber-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path>
+          </svg>
+        </div>
+        <div>
+          <h1 class="text-2xl sm:text-3xl font-extrabold tracking-tight">Privacy Policy</h1>
+          <p class="text-xs text-blue-200 uppercase tracking-widest font-bold">FaithConnect Application</p>
+        </div>
+      </div>
+      <p class="text-sm text-slate-200 leading-relaxed">
+        Last Revised: <strong>August 19, 2026</strong>. Your spiritual reflections, prayers, and personal faith notes are sacred to us. We are committed to protecting your privacy.
+      </p>
+    </div>
+
+    <!-- Content Sections -->
+    <div class="p-6 sm:p-10 space-y-8 text-slate-700 leading-relaxed text-sm sm:text-base">
+      <section>
+        <h2 class="text-lg font-bold text-slate-900 border-b border-slate-200 pb-2 mb-3">1. Information We Collect</h2>
+        <p class="mb-2"><strong>Account & Profile Information:</strong> When you register or sign in, we collect your name and email address to preserve your Bible study streaks, saved verses, and reading plans.</p>
+        <p class="mb-2"><strong>User Generated Spiritual Content:</strong> We store your personal prayer entries, prayer requests, highlighted scriptures, and journal reflections solely to display them within your personal account.</p>
+        <p><strong>Anonymous Device Data:</strong> We may collect non-identifiable diagnostics (such as app crash logs and device type) to ensure stability across Android and web browsers.</p>
+      </section>
+
+      <section>
+        <h2 class="text-lg font-bold text-slate-900 border-b border-slate-200 pb-2 mb-3">2. How We Use Your Information</h2>
+        <ul class="list-disc pl-5 space-y-2">
+          <li>To personalize your daily devotional schedule and synchronize Bible reading plans.</li>
+          <li>To power server-side AI study assistants and provide contextual scripture explanations.</li>
+          <li>To deliver push notifications for your daily verse and prayer reminders if you enable them.</li>
+          <li>We <strong>NEVER</strong> sell or rent your personal information to third-party advertisers.</li>
+        </ul>
+      </section>
+
+      <section>
+        <h2 class="text-lg font-bold text-slate-900 border-b border-slate-200 pb-2 mb-3">3. AI Assistant & Chat Privacy</h2>
+        <p>
+          FaithConnect features an AI-powered Bible study assistant powered by Google Gemini via secure server-side proxy. Your prayer journal entries and notes are not used to train public generative AI models without your consent.
+        </p>
+      </section>
+
+      <section>
+        <h2 class="text-lg font-bold text-slate-900 border-b border-slate-200 pb-2 mb-3">4. Data Ownership & Deletion</h2>
+        <p>
+          You retain complete ownership of your data. You may export a full backup of your notes and prayers at any time via the Profile screen, or request full account deletion by emailing our privacy team or using the in-app Reset Cache tool.
+        </p>
+      </section>
+
+      <section>
+        <h2 class="text-lg font-bold text-slate-900 border-b border-slate-200 pb-2 mb-3">5. Contact Information</h2>
+        <p>If you have any questions about this Privacy Policy or how your data is handled, please contact:</p>
+        <div class="mt-3 p-4 bg-slate-50 rounded-2xl border border-slate-200 text-xs sm:text-sm">
+          <p class="font-bold text-slate-900">FaithConnect Support Team</p>
+          <p class="text-slate-600">Email: <a href="mailto:support@faithconnect.app" class="text-[#0d4c73] font-semibold underline">support@faithconnect.app</a></p>
+          <p class="text-slate-500 mt-1">Website: <a href="/" class="text-[#0d4c73] underline">https://ais-pre-xgy7vrppv6jcgzzx5irpdk-387736714323.us-west2.run.app</a></p>
+        </div>
+      </section>
+
+      <div class="pt-6 border-t border-slate-200 text-center">
+        <a href="/" class="inline-flex items-center gap-2 px-6 py-3 bg-[#0d4c73] hover:bg-[#082f49] text-white font-bold rounded-2xl shadow-md transition-all text-sm">
+          ← Return to FaithConnect App
+        </a>
+      </div>
+    </div>
+  </div>
+</body>
+</html>`);
+  });
+
+  // Downloadable ready-to-build Android TWA Studio & Gradle Project
+  app.get(["/api/download-android-project", "/api/download-twa-zip"], async (_req, res) => {
+    try {
+      const zip = new JSZip();
+      const host = "ais-pre-xgy7vrppv6jcgzzx5irpdk-387736714323.us-west2.run.app";
+      const pkgName = "com.faithconnectapp.live";
+
+      // 1. Root settings.gradle
+      zip.file("settings.gradle", `include ':app'\nrootProject.name = "FaithConnect"\n`);
+
+      // 2. Root build.gradle
+      zip.file("build.gradle", `// Top-level build file where you can add configuration options common to all sub-projects/modules.
+buildscript {
+    repositories {
+        google()
+        mavenCentral()
+    }
+    dependencies {
+        classpath 'com.android.tools.build:gradle:8.2.2'
+    }
+}
+
+allprojects {
+    repositories {
+        google()
+        mavenCentral()
+    }
+}
+
+task clean(type: Delete) {
+    delete rootProject.buildDir
+}
+`);
+
+      // 3. gradle.properties
+      zip.file("gradle.properties", `org.gradle.jvmargs=-Xmx2048m -Dfile.encoding=UTF-8
+android.useAndroidX=true
+android.nonTransitiveRClass=true
+`);
+
+      // 4. app/build.gradle
+      zip.file("app/build.gradle", `plugins {
+    id 'com.android.application'
+}
+
+android {
+    namespace '${pkgName}'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId "${pkgName}"
+        minSdk 21
+        targetSdk 34
+        versionCode 1
+        versionName "1.0.0"
+
+        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+        manifestPlaceholders = [
+            hostName: "${host}",
+            defaultUrl: "https://${host}/?tab=home",
+            launcherName: "@string/app_name",
+            assetStatements: '[{ "relation": ["delegate_permission/common.handle_all_urls"], "target": {"namespace": "android_app", "package_name": "${pkgName}", "sha256_cert_fingerprints": ["FA:IT:HC:ON:NE:CT:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00"]}}]'
+        ]
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+    }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
+    }
+}
+
+dependencies {
+    implementation 'androidx.appcompat:appcompat:1.6.1'
+    implementation 'com.google.androidbrowserhelper:androidbrowserhelper:2.5.0'
+}
+`);
+
+      // 5. app/proguard-rules.pro
+      zip.file("app/proguard-rules.pro", `# Proguard rules
+-keepattributes *Annotation*
+-keepclassmembers class * {
+    @org.chromium.base.annotations.CalledByNative <methods>;
+}
+`);
+
+      // 6. app/src/main/AndroidManifest.xml
+      zip.file("app/src/main/AndroidManifest.xml", `<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="${pkgName}">
+
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+
+    <application
+        android:allowBackup="true"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:roundIcon="@mipmap/ic_launcher"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.FaithConnect">
+
+        <meta-data
+            android:name="asset_statements"
+            android:value="\${assetStatements}" />
+
+        <activity
+            android:name="com.google.androidbrowserhelper.trusted.LauncherActivity"
+            android:label="@string/app_name"
+            android:theme="@style/Theme.FaithConnect"
+            android:exported="true">
+
+            <meta-data
+                android:name="android.support.customtabs.trusted.DEFAULT_URL"
+                android:value="\${defaultUrl}" />
+
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data
+                    android:scheme="https"
+                    android:host="\${hostName}" />
+            </intent-filter>
+        </activity>
+    </application>
+</manifest>
+`);
+
+      // 7. app/src/main/res/values/strings.xml, colors.xml, styles.xml
+      zip.file("app/src/main/res/values/strings.xml", `<resources>
+    <string name="app_name">FaithConnect</string>
+</resources>
+`);
+
+      zip.file("app/src/main/res/values/colors.xml", `<resources>
+    <color name="colorPrimary">#0D4C73</color>
+    <color name="colorPrimaryDark">#082F49</color>
+    <color name="colorAccent">#F59E0B</color>
+</resources>
+`);
+
+      zip.file("app/src/main/res/values/styles.xml", `<resources>
+    <style name="Theme.FaithConnect" parent="Theme.AppCompat.Light.NoActionBar">
+        <item name="colorPrimary">@color/colorPrimary</item>
+        <item name="colorPrimaryDark">@color/colorPrimaryDark</item>
+        <item name="colorAccent">@color/colorAccent</item>
+        <item name="android:windowBackground">@color/colorPrimaryDark</item>
+        <item name="android:navigationBarColor">@color/colorPrimaryDark</item>
+        <item name="android:statusBarColor">@color/colorPrimary</item>
+    </style>
+</resources>
+`);
+
+      // 8. Add app icons
+      const iconPath512 = path.join(publicDir, "favicon-512x512.png");
+      const iconPath192 = path.join(publicDir, "favicon-192x192.png");
+
+      if (fs.existsSync(iconPath512)) {
+        const iconBuf512 = fs.readFileSync(iconPath512);
+        zip.file("app/src/main/res/mipmap-xxxhdpi/ic_launcher.png", iconBuf512);
+        zip.file("app/src/main/res/mipmap-xxhdpi/ic_launcher.png", iconBuf512);
+      }
+      if (fs.existsSync(iconPath192)) {
+        const iconBuf192 = fs.readFileSync(iconPath192);
+        zip.file("app/src/main/res/mipmap-xhdpi/ic_launcher.png", iconBuf192);
+        zip.file("app/src/main/res/mipmap-hdpi/ic_launcher.png", iconBuf192);
+        zip.file("app/src/main/res/mipmap-mdpi/ic_launcher.png", iconBuf192);
+      }
+
+      // 9. twa-manifest.json
+      const twaManifest = {
+        packageId: pkgName,
+        host: host,
+        name: "FaithConnect - Bible & Prayer",
+        launcherName: "FaithConnect",
+        themeColor: "#0D4C73",
+        navigationColor: "#082F49",
+        backgroundColor: "#0F172A",
+        enableNotifications: true,
+        startUrl: "/?tab=home",
+        iconUrl: `https://${host}/favicon-512x512.png`,
+        maskableIconUrl: `https://${host}/favicon-512x512.png`,
+        shortcuts: [],
+        generatorApp: "bubblewrap-cli",
+        webManifestUrl: `https://${host}/manifest.json`,
+        fallbackType: "customtabs",
+        features: {
+          locationDelegation: { enabled: false },
+          playBilling: { enabled: false }
+        },
+        alphaDependencies: { enabled: false }
+      };
+      zip.file("twa-manifest.json", JSON.stringify(twaManifest, null, 2));
+
+      // 10. assetlinks.json
+      const assetlinks = [
+        {
+          relation: ["delegate_permission/common.handle_all_urls"],
+          target: {
+            namespace: "android_app",
+            package_name: pkgName,
+            sha256_cert_fingerprints: [
+              "AB:63:68:9D:76:40:F9:F3:AE:B3:1F:AF:E0:8F:FC:65:E7:0D:A8:92:48:04:D1:B8:79:0E:6C:9A:90:C7:42:E3"
+            ]
+          }
+        }
+      ];
+      zip.file("assetlinks.json", JSON.stringify(assetlinks, null, 2));
+
+      // 11. README Instructions
+      zip.file("README.md", `# FaithConnect Android App Project
+Package Name: ${pkgName}
+Host: https://${host}
+
+## How to Build 'app-release-bundle.aab' for Google Play:
+
+### Option A: Using Command Line (Gradle)
+1. Unzip this package.
+2. In your terminal, navigate to the unzipped folder.
+3. Run:
+   \`\`\`bash
+   ./gradlew bundleRelease
+   \`\`\`
+   *(On Windows Command Prompt: \`gradlew.bat bundleRelease\`)*
+4. Your Google Play bundle will be created at:
+   \`app/build/outputs/bundle/release/app-release.aab\`
+
+### Option B: Using Android Studio (Visual GUI)
+1. Open Android Studio.
+2. Click **File > Open** and select this unzipped folder.
+3. Wait for Gradle sync to finish.
+4. Click **Build > Generate Signed Bundle / APK...**
+5. Select **Android App Bundle (.aab)** > Next.
+6. Choose or create your keystore key and click **Finish**.
+7. Upload the generated \`.aab\` bundle to the Google Play Console!
+`);
+
+      const buffer = await zip.generateAsync({ type: "nodebuffer", compression: "DEFLATE" });
+      res.setHeader("Content-Type", "application/zip");
+      res.setHeader("Content-Disposition", 'attachment; filename="faithconnect-android-package.zip"');
+      res.setHeader("Access-Control-Allow-Origin", "*");
+      res.send(buffer);
+    } catch (err: any) {
+      console.error("Error generating zip:", err);
+      res.status(500).json({ error: "Failed to generate zip package", details: err?.message });
     }
   });
 

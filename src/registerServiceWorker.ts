@@ -19,6 +19,24 @@ export function registerServiceWorker() {
   offlineStorage.init();
 }
 
+export async function requestBackgroundSync(tag: string = 'sync-pending-data'): Promise<boolean> {
+  if ('serviceWorker' in navigator && 'SyncManager' in window) {
+    try {
+      const registration = await navigator.serviceWorker.ready;
+      // @ts-expect-error SyncManager is part of the Background Sync API specification
+      if (registration.sync) {
+        // @ts-expect-error sync is not in default DOM types
+        await registration.sync.register(tag);
+        console.log(`[Background Sync] Registered sync tag: "${tag}"`);
+        return true;
+      }
+    } catch (err) {
+      console.warn('[Background Sync] Failed to register sync:', err);
+    }
+  }
+  return false;
+}
+
 export function useOfflineStatus() {
   const [isOnline, setIsOnline] = useState<boolean>(
     typeof navigator !== 'undefined' ? navigator.onLine : true

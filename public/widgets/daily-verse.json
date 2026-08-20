@@ -1,0 +1,42 @@
+{
+  "type": "AdaptiveCard",
+  "$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
+  "version": "1.5",
+  "body": [
+    {
+      "type": "Container",
+      "style": "emphasis",
+      "items": [
+        {
+          "type": "TextBlock",
+          "text": "✝ FaithPath • Verse of the Day",
+          "weight": "Bolder",
+          "size": "Medium",
+          "color": "Accent"
+        },
+        {
+          "type": "TextBlock",
+          "text": "${verseText}",
+          "wrap": true,
+          "fontType": "Serif",
+          "size": "Default",
+          "isSubtle": false
+        },
+        {
+          "type": "TextBlock",
+          "text": "— ${verseReference}",
+          "isSubtle": true,
+          "weight": "Bolder",
+          "horizontalAlignment": "Right"
+        }
+      ]
+    }
+  ],
+  "actions": [
+    {
+      "type": "Action.OpenUrl",
+      "title": "Open FaithPath",
+      "url": "https://ais-pre-xgy7vrppv6jcgzzx5irpdk-387736714323.us-west2.run.app/?tab=home"
+    }
+  ]
+}

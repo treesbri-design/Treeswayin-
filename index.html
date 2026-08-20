@@ -3,17 +3,24 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-    <title>FaithPath AI - Bible Study & Daily Prayer</title>
+    <title>FaithConnect - Bible Study & Daily Prayer</title>
     <meta name="description" content="A modern Christian mobile application for Bible study, AI prayer guidance, prayer journaling, and daily devotionals." />
-    <meta name="theme-color" content="#1E3A8A" />
+    <meta name="theme-color" content="#0d4c73" />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <link rel="manifest" href="/manifest.json" />
-    <link rel="icon" type="image/png" href="https://images.unsplash.com/photo-1507692049790-de58290a4334?auto=format&fit=crop&q=80&w=192" />
+    <link rel="icon" type="image/png" sizes="192x192" href="/favicon-192x192.png" />
+    <link rel="icon" type="image/png" sizes="512x512" href="/favicon-512x512.png" />
+    <link rel="apple-touch-icon" href="/icon-192.png" />
   </head>
   <body class="bg-slate-900 text-slate-100 antialiased selection:bg-amber-400 selection:text-slate-900">
     <div id="root"></div>
+    <script>
+      if (typeof navigator.serviceWorker !== 'undefined') {
+        navigator.serviceWorker.register('sw.js');
+      }
+    </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

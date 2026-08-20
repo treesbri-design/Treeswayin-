@@ -1,0 +1,12 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.faithconnectapp.live",
+      "sha256_cert_fingerprints": [
+        "AB:63:68:9D:76:40:F9:F3:AE:B3:1F:AF:E0:8F:FC:65:E7:0D:A8:92:48:04:D1:B8:79:0E:6C:9A:90:C7:42:E3"
+      ]
+    }
+  }
+]

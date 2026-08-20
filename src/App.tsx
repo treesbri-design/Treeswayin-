@@ -14,6 +14,7 @@ import { DevotionalModal } from './components/DevotionalModal';
 import { SermonSummarizerModal } from './components/SermonSummarizerModal';
 import { StudyPlanModal } from './components/StudyPlanModal';
 import { NotificationModal } from './components/NotificationModal';
+import { PrivacyPolicy } from './components/PrivacyPolicy';
 
 import { 
   UserProfile, 
@@ -32,7 +33,27 @@ import { INITIAL_DEVOTIONAL, INITIAL_READING_PLANS, DAILY_VERSE_OF_THE_DAY } fro
 export default function App() {
   // Mobile Frame vs Fullscreen mode
   const [isPhoneFrame, setIsPhoneFrame] = useState<boolean>(true);
-  const [activeTab, setActiveTab] = useState<NavTab>('home');
+  const [activeTab, setActiveTab] = useState<NavTab>(() => {
+    try {
+      const urlParams = new URLSearchParams(window.location.search);
+      const actionParam = urlParams.get('action');
+      if (actionParam === 'new_note' || actionParam === 'new_prayer') {
+        return 'prayer';
+      }
+      const tabParam = urlParams.get('tab') as NavTab;
+      if (tabParam && ['home', 'bible', 'sunday_school', 'ai', 'prayer', 'profile'].includes(tabParam)) {
+        return tabParam;
+      }
+      const customProtocol = urlParams.get('custom_protocol');
+      if (customProtocol) {
+        console.log('Opened via protocol handler:', customProtocol);
+        if (customProtocol.includes('bible') || customProtocol.includes('verse')) return 'bible';
+        if (customProtocol.includes('prayer')) return 'prayer';
+        if (customProtocol.includes('ai') || customProtocol.includes('study')) return 'ai';
+      }
+    } catch (e) {}
+    return 'home';
+  });
 
   // User State
   const [user, setUser] = useState<UserProfile>(() => {
@@ -40,27 +61,32 @@ export default function App() {
     if (saved) {
       try { 
         const parsed = JSON.parse(saved); 
-        return {
-          ...parsed,
-          isPremium: true,
-          trialDaysRemaining: parsed.trialDaysRemaining ?? 30,
-          trialStartDate: parsed.trialStartDate || new Date().toISOString().split('T')[0]
-        };
+        // If the browser localStorage still has the old mock 'Sarah Jenkins' name, reset it
+        if (parsed.name === 'Sarah Jenkins' || parsed.email === 'sarah.jenkins@gmail.com') {
+          localStorage.removeItem('faithpath_user');
+        } else {
+          return {
+            ...parsed,
+            isPremium: true,
+            trialDaysRemaining: parsed.trialDaysRemaining ?? 30,
+            trialStartDate: parsed.trialStartDate || new Date().toISOString().split('T')[0]
+          };
+        }
       } catch (e) {}
     }
     return {
       id: 'usr-1',
-      name: 'Sarah Jenkins',
-      email: 'sarah.jenkins@gmail.com',
-      photoUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=200',
+      name: '',
+      email: '',
+      photoUrl: '',
       isPremium: true,
       trialDaysRemaining: 30,
       trialStartDate: new Date().toISOString().split('T')[0],
-      streakDays: 7,
+      streakDays: 1,
       lastActiveDate: new Date().toISOString().split('T')[0],
       preferredTranslation: 'NIV',
-      readingProgressCount: 14,
-      joinedDate: 'July 2026'
+      readingProgressCount: 0,
+      joinedDate: 'August 2026'
     };
   });
 
@@ -181,6 +207,14 @@ export default function App() {
   const [showSermonModal, setShowSermonModal] = useState<boolean>(false);
   const [showStudyPlanModal, setShowStudyPlanModal] = useState<boolean>(false);
   const [showNotificationsModal, setShowNotificationsModal] = useState<boolean>(false);
+  const [showPrivacyModal, setShowPrivacyModal] = useState<boolean>(() => {
+    try {
+      const urlParams = new URLSearchParams(window.location.search);
+      return urlParams.get('page') === 'privacy' || urlParams.get('tab') === 'privacy';
+    } catch (e) {
+      return false;
+    }
+  });
   const [aiInitialPrompt, setAiInitialPrompt] = useState<string>('');
 
   // Persist State Changes to LocalStorage
@@ -211,6 +245,110 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem('faithpath_notifications', JSON.stringify(notifications));
   }, [notifications]);
+
+  // App Badging API support (PWA App Badge for unanswered prayers / active reminder count)
+  useEffect(() => {
+    if ('setAppBadge' in navigator) {
+      const unansweredCount = prayers.filter(p => !p.isAnswered).length;
+      if (unansweredCount > 0) {
+        (navigator as any).setAppBadge(unansweredCount).then(() => {
+          console.log("The badge was added:", unansweredCount);
+        }).catch((e: any) => {
+          console.error("Error displaying the badge", e);
+        });
+      } else if ('clearAppBadge' in navigator) {
+        (navigator as any).clearAppBadge().catch((e: any) => {
+          console.error("Error clearing badge", e);
+        });
+      }
+    }
+  }, [prayers]);
+
+  // File Handling API support (PWA launchQueue)
+  useEffect(() => {
+    async function handleFiles(files: any[]) {
+      for (const file of files) {
+        try {
+          const blob = await file.getFile();
+          blob.handle = file;
+          const text = await blob.text();
+          console.log(file.name + ' ' + text);
+        } catch (err) {
+          console.error('Error reading handled file', err);
+        }
+      }
+    }
+
+    if ('launchQueue' in window) {
+      console.log('File Handling API is supported!');
+      (window as any).launchQueue.setConsumer((launchParams: any) => {
+        if (launchParams && launchParams.files && launchParams.files.length) {
+          handleFiles(launchParams.files);
+        }
+      });
+    } else {
+      console.log('File Handling API is not supported!');
+    }
+
+    // Web Share Target Handler (Incoming shared text, scriptures, notes from other apps)
+    try {
+      const urlParams = new URLSearchParams(window.location.search);
+      const shareTitle = urlParams.get('share_title');
+      const shareText = urlParams.get('share_text');
+      const shareUrl = urlParams.get('share_url');
+
+      if (shareTitle || shareText || shareUrl) {
+        const fullContent = [shareText, shareUrl].filter(Boolean).join('\n\nSource: ');
+        const newSharedPrayer: PrayerEntry = {
+          id: `shared-${Date.now()}`,
+          title: shareTitle || 'Shared Scripture / Note',
+          content: fullContent || 'Shared entry from device',
+          category: 'Guidance',
+          mood: 'Seeking',
+          isAnswered: false,
+          createdAt: new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }),
+          tags: ['#Shared', '#Study', '#Devotional']
+        };
+
+        setPrayers(prev => [newSharedPrayer, ...prev]);
+        setActiveTab('prayer');
+        console.log('[Web Share Target] Processed incoming share:', newSharedPrayer);
+        
+        // Clean query params from URL history cleanly
+        window.history.replaceState({}, document.title, window.location.pathname + '?tab=prayer');
+      }
+    } catch (e) {
+      console.warn('[Web Share Target] Error parsing query:', e);
+    }
+
+    // Periodic Background Sync registration
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.ready.then(async (registration: any) => {
+        if ('periodicSync' in registration) {
+          try {
+            const status = await (navigator as any).permissions.query({
+              name: 'periodic-background-sync',
+            });
+            if (status.state === 'granted') {
+              // 24-hour interval in milliseconds (morning devotional pre-fetch)
+              const ONE_DAY_MS = 24 * 60 * 60 * 1000;
+              await registration.periodicSync.register('get-daily-devotional', {
+                minInterval: ONE_DAY_MS,
+              });
+              await registration.periodicSync.register('daily-verse-sync', {
+                minInterval: ONE_DAY_MS,
+              });
+              console.log('[Periodic Background Sync] Successfully registered for daily devotionals and verses!');
+            } else {
+              console.log('[Periodic Background Sync] Permission state:', status.state);
+            }
+          } catch (error) {
+            console.log('[Periodic Background Sync] Registration notice:', error);
+          }
+        }
+      });
+    }
+  }, []);
 
   // Actions
   const handleSaveVerse = (verse: { bookName: string; chapter: number; verse: number; text: string }) => {
@@ -491,6 +629,13 @@ export default function App() {
         onClose={() => setShowNotificationsModal(false)}
         onNavigateToTab={(tab) => setActiveTab(tab)}
       />
+
+      {showPrivacyModal && (
+        <PrivacyPolicy
+          isModal={true}
+          onClose={() => setShowPrivacyModal(false)}
+        />
+      )}
     </div>
   );
 }

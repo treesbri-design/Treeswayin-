@@ -29,7 +29,7 @@ export const UpgradeModal: React.FC<UpgradeModalProps> = ({
   if (!isOpen) return null;
 
   const features = [
-    { title: "Unlimited AI Chats & Bible Q&A", desc: "No daily question limits with FaithPath AI.", icon: MessageSquare },
+    { title: "Unlimited AI Chats & Bible Q&A", desc: "No daily question limits with FaithConnect AI.", icon: MessageSquare },
     { title: "Personalized AI Bible Study Plans", desc: "Tailored 7-day or 30-day topical plans.", icon: BookOpen },
     { title: "AI-Generated Devotionals", desc: "Customized daily devotionals for your current season.", icon: Sparkles },
     { title: "Sermon & Lecture Summaries", desc: "Turn sermon notes into actionable takeaways.", icon: FileText },

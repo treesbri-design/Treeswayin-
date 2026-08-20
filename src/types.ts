@@ -38,7 +38,15 @@ export interface SundaySchoolLesson {
   createdAt?: string;
 }
 
-export type BibleTranslation = 'NIV' | 'KJV' | 'ESV' | 'WEB';
+export type BibleTranslation = 
+  | 'NIV' 
+  | 'KJV' 
+  | 'ESV' 
+  | 'WEB' 
+  | 'RVR1960'  // Spanish (Reina-Valera 1960)
+  | 'ARC'      // Portuguese (Almeida Revista e Corrigida)
+  | 'LSG'      // French (Louis Segond 1910)
+  | 'LUT';     // German (Lutherbibel 2017)
 
 export interface UserProfile {
   id: string;

@@ -31,6 +31,7 @@ import { PrayerCircles } from './PrayerCircles';
 import { PrayerAnalyticsWidget } from './PrayerAnalyticsWidget';
 import { StreakCelebrationModal } from './StreakCelebrationModal';
 import { Users, BookMarked } from 'lucide-react';
+import { ttsService } from '../services/ttsService';
 
 interface PrayerTabProps {
   user?: UserProfile;
@@ -48,11 +49,25 @@ export const PrayerTab: React.FC<PrayerTabProps> = ({
   onDeletePrayer
 }) => {
   const [activeSubTab, setActiveSubTab] = useState<'journal' | 'circles'>('journal');
-  const [showAddModal, setShowAddModal] = useState<boolean>(false);
+  const [showAddModal, setShowAddModal] = useState<boolean>(() => {
+    try {
+      const urlParams = new URLSearchParams(window.location.search);
+      const action = urlParams.get('action');
+      return action === 'new_note' || action === 'new_prayer';
+    } catch (e) {
+      return false;
+    }
+  });
   const [showStreakModal, setShowStreakModal] = useState<boolean>(false);
   const [filterCategory, setFilterCategory] = useState<string>('All');
   const [filterStatus, setFilterStatus] = useState<'All' | 'Active' | 'Answered'>('All');
   const [selectedTag, setSelectedTag] = useState<string>('All');
+  const [ttsSpeakingId, setTtsSpeakingId] = useState<string | null>(null);
+
+  useEffect(() => {
+    const unsub = ttsService.subscribe((id) => setTtsSpeakingId(id));
+    return unsub;
+  }, []);
 
   // New Prayer Form state
   const [title, setTitle] = useState<string>('');
@@ -542,6 +557,23 @@ export const PrayerTab: React.FC<PrayerTabProps> = ({
                 </div>
 
                 <div className="flex items-center gap-1.5">
+                  {prayer.content && !prayer.audioUrl && (
+                    <button
+                      onClick={() => {
+                        const narrationText = `Prayer: ${prayer.title}. ${prayer.content}`;
+                        ttsService.toggle(prayer.id, narrationText);
+                      }}
+                      className={`p-1.5 rounded-lg border transition-all flex items-center gap-1 text-[10px] font-bold ${
+                        ttsSpeakingId === prayer.id
+                          ? 'bg-[#1E3A8A] text-white border-[#1E3A8A] animate-pulse'
+                          : 'bg-slate-50 hover:bg-blue-50 text-slate-600 border-slate-200'
+                      }`}
+                      title={ttsSpeakingId === prayer.id ? 'Stop Narration' : 'Narrate prayer'}
+                    >
+                      <Volume2 className="w-3.5 h-3.5" />
+                      {ttsSpeakingId === prayer.id && <span>Listening</span>}
+                    </button>
+                  )}
                   <span className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full border ${categoryColors[prayer.category]}`}>
                     {prayer.category}
                   </span>

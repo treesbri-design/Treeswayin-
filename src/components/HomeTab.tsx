@@ -61,7 +61,7 @@ export const HomeTab: React.FC<HomeTabProps> = ({
               <Sparkles className="w-3 h-3" /> Community Fellowship & Devotion
             </span>
             <h1 className="text-xl sm:text-2xl font-black text-white mt-1.5 flex items-center gap-2">
-              Welcome back, {user.name || 'Friend'}!
+              {user.name ? `Welcome back, ${user.name}!` : 'Welcome to FaithPath'}
             </h1>
             <p className="text-xs text-blue-100 max-w-md mt-1 leading-relaxed">
               Grow closer to God today through Scripture, spiritual check-ins, and standing together in prayer with thousands of believers globally.

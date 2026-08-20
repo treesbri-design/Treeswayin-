@@ -49,7 +49,7 @@ export const Header: React.FC<HeaderProps> = ({
           </div>
           <div>
             <div className="flex items-center gap-1.5">
-              <h1 className="text-lg font-extrabold tracking-tight text-white leading-none">FaithPath</h1>
+              <h1 className="text-lg font-extrabold tracking-tight text-white leading-none">FaithConnect</h1>
               <span className="text-[10px] font-bold uppercase tracking-wider bg-[#D4AF37] text-[#1E3A8A] px-1.5 py-0.5 rounded-full shadow-sm">AI</span>
             </div>
             <p className="text-[11px] text-blue-200 font-medium leading-tight flex items-center gap-1">
@@ -109,14 +109,18 @@ export const Header: React.FC<HeaderProps> = ({
           {/* User Avatar */}
           <button
             onClick={onOpenAuth}
-            className="relative w-8 h-8 rounded-full border-2 border-[#D4AF37] overflow-hidden focus:outline-none focus:ring-2 focus:ring-[#D4AF37]/50"
-            title={user.email ? user.name : "Sign In"}
+            className="relative w-8 h-8 rounded-full border-2 border-[#D4AF37] overflow-hidden focus:outline-none focus:ring-2 focus:ring-[#D4AF37]/50 flex items-center justify-center bg-blue-900"
+            title={user.name || "Account"}
           >
-            <img 
-              src={user.photoUrl || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=200"} 
-              alt={user.name} 
-              className="w-full h-full object-cover"
-            />
+            {user.photoUrl ? (
+              <img 
+                src={user.photoUrl} 
+                alt={user.name || "User"} 
+                className="w-full h-full object-cover"
+              />
+            ) : (
+              <span className="text-xs font-black text-[#D4AF37]">✝</span>
+            )}
           </button>
         </div>
       </div>

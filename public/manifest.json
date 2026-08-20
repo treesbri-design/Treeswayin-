@@ -1,22 +1,261 @@
 {
-  "short_name": "FaithPath AI",
-  "name": "FaithPath AI - Bible Study & Daily Prayer",
-  "icons": [
+  "short_name": "FaithConnect",
+  "name": "FaithConnect - Bible & Prayer",
+  "description": "Daily Christian devotionals, scripture reader, AI-guided prayers, and spiritual journal.",
+  "id": "/?source=pwa",
+  "start_url": "/?tab=home",
+  "scope": "/",
+  "display": "standalone",
+  "display_override": [
+    "tabbed",
+    "window-controls-overlay",
+    "standalone",
+    "minimal-ui"
+  ],
+  "tab_strip": {
+    "home_tab": {
+      "scope_patterns": [
+        "/?tab=home",
+        "/"
+      ]
+    },
+    "new_tab_button": {
+      "url": "/?tab=home"
+    }
+  },
+  "orientation": "portrait-primary",
+  "theme_color": "#0d4c73",
+  "background_color": "#0f172a",
+  "categories": [
+    "lifestyle",
+    "education",
+    "books"
+  ],
+  "prefer_related_applications": false,
+  "related_applications": [
     {
-      "src": "https://images.unsplash.com/photo-1507692049790-de58290a4334?auto=format&fit=crop&q=80&w=192",
-      "type": "image/png",
-      "sizes": "192x192"
+      "platform": "play",
+      "url": "https://play.google.com/store/apps/details?id=com.faithconnectapp.live",
+      "id": "com.faithconnectapp.live"
     },
     {
-      "src": "https://images.unsplash.com/photo-1507692049790-de58290a4334?auto=format&fit=crop&q=80&w=512",
-      "type": "image/png",
-      "sizes": "512x512"
+      "platform": "windows",
+      "url": "https://www.microsoft.com/store/apps/9NFAITHCONNECT",
+      "id": "FaithConnect.FaithConnect"
+    },
+    {
+      "platform": "webapp",
+      "url": "/manifest.json"
     }
   ],
-  "start_url": "/",
-  "background_color": "#1E3A8A",
-  "theme_color": "#1E3A8A",
-  "display": "standalone",
-  "orientation": "portrait",
-  "description": "Grow closer to God every day with AI scripture insights, daily devotionals, Bible study plans, and prayer journaling."
+  "launch_handler": {
+    "client_mode": [
+      "focus-existing",
+      "auto"
+    ]
+  },
+  "edge_side_panel": {
+    "preferred_width": 480
+  },
+  "iarc_rating_id": "e58c1734-7a1a-4d4a-9b48-3a817b2b6290",
+  "note_taking": {
+    "new_note_url": "/?tab=prayer&action=new_note"
+  },
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/favicon-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/favicon-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "/screenshot-1.png",
+      "sizes": "1080x1920",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "Daily Verse & Spiritual Community"
+    },
+    {
+      "src": "/screenshot-2.png",
+      "sizes": "1080x1920",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "Prayer Journal & Analytics Breakdown"
+    },
+    {
+      "src": "/screenshot-3.png",
+      "sizes": "1080x1920",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "Multi-Language Scripture Reader (Spanish, Portuguese, French, German, English)"
+    },
+    {
+      "src": "/screenshot-4.png",
+      "sizes": "1080x1920",
+      "type": "image/png",
+      "form_factor": "wide",
+      "label": "FaithConnect Spiritual Guide & Lessons Hub"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Read Scripture",
+      "short_name": "Bible",
+      "description": "Open Bible reader and study scripture chapters",
+      "url": "/?tab=bible",
+      "icons": [
+        {
+          "src": "/favicon-192x192.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ]
+    },
+    {
+      "name": "Prayer Journal",
+      "short_name": "Prayers",
+      "description": "Log new prayer requests and gratitude entries",
+      "url": "/?tab=prayer",
+      "icons": [
+        {
+          "src": "/favicon-192x192.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ]
+    },
+    {
+      "name": "Daily Devotional",
+      "short_name": "Today",
+      "description": "View today's verse of the day and devotional reflection",
+      "url": "/?tab=home",
+      "icons": [
+        {
+          "src": "/favicon-192x192.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ]
+    },
+    {
+      "name": "AI Spiritual Guide",
+      "short_name": "Faith AI",
+      "description": "Ask questions, explore theological insights and commentary",
+      "url": "/?tab=ai",
+      "icons": [
+        {
+          "src": "/favicon-192x192.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ]
+    }
+  ],
+  "protocol_handlers": [
+    {
+      "protocol": "web+faithconnect",
+      "url": "/?custom_protocol=%s"
+    }
+  ],
+  "file_handlers": [
+    {
+      "action": "/",
+      "name": "Text & Scripture Files",
+      "icons": [
+        {
+          "src": "/favicon-192x192.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ],
+      "accept": {
+        "*/*": [
+          ".txt"
+        ]
+      }
+    }
+  ],
+  "share_target": {
+    "action": "/?tab=prayer",
+    "method": "GET",
+    "params": {
+      "title": "share_title",
+      "text": "share_text",
+      "url": "share_url"
+    }
+  },
+  "widgets": [
+    {
+      "name": "Daily Verse of the Day",
+      "short_name": "Daily Verse",
+      "description": "Receive daily Christian scripture inspiration on your Windows desktop or widget board.",
+      "tag": "faithconnect-daily-verse",
+      "template": "widget-verse",
+      "ms_ac_template": "/widgets/daily-verse.json",
+      "data": "/widgets/daily-verse-data.json",
+      "type": "application/json",
+      "screenshots": [
+        {
+          "src": "/screenshot-1.png",
+          "sizes": "1080x1920",
+          "label": "Daily Scripture Widget"
+        }
+      ],
+      "icons": [
+        {
+          "src": "/favicon-192x192.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ],
+      "auth": false,
+      "update": 86400
+    },
+    {
+      "name": "FaithConnect Prayer Tracker",
+      "short_name": "Prayers",
+      "description": "Quick view of active and answered prayer milestones.",
+      "tag": "faithconnect-prayer-tracker",
+      "template": "widget-prayers",
+      "ms_ac_template": "/widgets/prayer-tracker.json",
+      "data": "/widgets/prayer-data.json",
+      "type": "application/json",
+      "screenshots": [
+        {
+          "src": "/screenshot-2.png",
+          "sizes": "1080x1920",
+          "label": "Prayer Tracker Widget"
+        }
+      ],
+      "icons": [
+        {
+          "src": "/favicon-192x192.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ],
+      "auth": false,
+      "update": 3600
+    }
+  ]
 }

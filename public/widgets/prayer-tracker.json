@@ -1,0 +1,33 @@
+{
+  "type": "AdaptiveCard",
+  "$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
+  "version": "1.5",
+  "body": [
+    {
+      "type": "Container",
+      "items": [
+        {
+          "type": "TextBlock",
+          "text": "🙏 Prayer Journal & Gratitude",
+          "weight": "Bolder",
+          "size": "Medium"
+        },
+        {
+          "type": "FactSet",
+          "facts": [
+            { "title": "Active Prayers:", "value": "${activeCount}" },
+            { "title": "Answered Prayers:", "value": "${answeredCount}" },
+            { "title": "Streak:", "value": "${streakDays} Days" }
+          ]
+        }
+      ]
+    }
+  ],
+  "actions": [
+    {
+      "type": "Action.OpenUrl",
+      "title": "Log Prayer",
+      "url": "https://ais-pre-xgy7vrppv6jcgzzx5irpdk-387736714323.us-west2.run.app/?tab=prayer"
+    }
+  ]
+}

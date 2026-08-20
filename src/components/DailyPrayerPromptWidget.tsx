@@ -13,10 +13,14 @@ import {
   PenTool, 
   BookmarkCheck,
   Feather,
-  ChevronRight
+  ChevronRight,
+  Volume2,
+  VolumeX,
+  Square as StopSquare
 } from 'lucide-react';
 import { DailyPrayerPrompt, NavTab } from '../types';
 import { fetchDailyPrayerPrompt } from '../services/apiService';
+import { ttsService } from '../services/ttsService';
 
 interface DailyPrayerPromptWidgetProps {
   onAskAiPrompt?: (promptText: string) => void;
@@ -43,6 +47,12 @@ export const DailyPrayerPromptWidget: React.FC<DailyPrayerPromptWidgetProps> = (
   const [userJournalInput, setUserJournalInput] = useState<string>('');
   const [showJournalInput, setShowJournalInput] = useState<boolean>(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [speakingId, setSpeakingId] = useState<string | null>(null);
+
+  useEffect(() => {
+    const unsub = ttsService.subscribe((id) => setSpeakingId(id));
+    return unsub;
+  }, []);
 
   const todayFormatted = new Date().toLocaleDateString('en-US', {
     weekday: 'short',
@@ -235,23 +245,51 @@ export const DailyPrayerPromptWidget: React.FC<DailyPrayerPromptWidgetProps> = (
                 Prayer Starter
               </span>
 
-              <button
-                type="button"
-                onClick={handleCopyPrayer}
-                className="px-2.5 py-1 bg-white hover:bg-amber-100 text-amber-900 font-bold text-[10px] rounded-lg border border-amber-300 shadow-2xs flex items-center gap-1 transition-all"
-              >
-                {copied ? (
-                  <>
-                    <Check className="w-3 h-3 text-emerald-600" />
-                    <span className="text-emerald-700">Copied!</span>
-                  </>
-                ) : (
-                  <>
-                    <Copy className="w-3 h-3 text-amber-700" />
-                    <span>Copy Text</span>
-                  </>
-                )}
-              </button>
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const textToNarrate = `Daily Prayer. Theme: ${promptData.theme}. Scripture: ${promptData.scriptureAnchor?.text || ''}. Prayer: ${promptData.prayerStarter}`;
+                    ttsService.toggle('daily-prayer-prompt', textToNarrate);
+                  }}
+                  className={`px-2.5 py-1 font-bold text-[10px] rounded-lg border shadow-2xs flex items-center gap-1 transition-all ${
+                    speakingId === 'daily-prayer-prompt'
+                      ? 'bg-amber-600 text-white border-amber-700 animate-pulse'
+                      : 'bg-white hover:bg-amber-100 text-amber-900 border-amber-300'
+                  }`}
+                  title={speakingId === 'daily-prayer-prompt' ? 'Stop Narration' : 'Listen to Prayer Audio'}
+                >
+                  {speakingId === 'daily-prayer-prompt' ? (
+                    <>
+                      <StopSquare className="w-3 h-3 fill-white" />
+                      <span>Stop Audio</span>
+                    </>
+                  ) : (
+                    <>
+                      <Volume2 className="w-3 h-3 text-amber-700" />
+                      <span>Listen</span>
+                    </>
+                  )}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleCopyPrayer}
+                  className="px-2.5 py-1 bg-white hover:bg-amber-100 text-amber-900 font-bold text-[10px] rounded-lg border border-amber-300 shadow-2xs flex items-center gap-1 transition-all"
+                >
+                  {copied ? (
+                    <>
+                      <Check className="w-3 h-3 text-emerald-600" />
+                      <span className="text-emerald-700">Copied!</span>
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="w-3 h-3 text-amber-700" />
+                      <span>Copy Text</span>
+                    </>
+                  )}
+                </button>
+              </div>
             </div>
 
             <p className="text-xs font-serif font-bold text-slate-900 leading-relaxed pt-1">

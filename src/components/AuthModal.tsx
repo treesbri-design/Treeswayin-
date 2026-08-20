@@ -42,8 +42,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({
 
   const handleGoogleSignIn = () => {
     onUpdateUser({
-      name: "Sarah Jenkins",
-      email: "sarah.jenkins@gmail.com",
+      name: name || "Christian Pilgrim",
+      email: email || "user@faithpath.app",
       photoUrl: avatars[0]
     });
     onClose();
@@ -156,13 +156,21 @@ export const AuthModal: React.FC<AuthModalProps> = ({
           </button>
         </form>
 
-        <div className="text-center pt-1">
-          <button
-            onClick={() => setMode(mode === 'signin' ? 'signup' : 'signin')}
-            className="text-xs text-[#1E3A8A] font-bold hover:underline"
-          >
-            {mode === 'signin' ? "Don't have an account? Sign Up" : "Already have an account? Sign In"}
-          </button>
+        <div className="text-center pt-1 space-y-1">
+          <div>
+            <button
+              onClick={() => setMode(mode === 'signin' ? 'signup' : 'signin')}
+              className="text-xs text-[#1E3A8A] font-bold hover:underline"
+            >
+              {mode === 'signin' ? "Don't have an account? Sign Up" : "Already have an account? Sign In"}
+            </button>
+          </div>
+          <p className="text-[10px] text-slate-400">
+            By continuing, you agree to FaithConnect's{' '}
+            <a href="/privacy" target="_blank" rel="noopener noreferrer" className="text-slate-600 underline font-medium hover:text-[#0d4c73]">
+              Privacy Policy
+            </a>
+          </p>
         </div>
       </div>
     </div>

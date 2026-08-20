@@ -1,8 +1,10 @@
-import React, { useState } from 'react';
-import { Bookmark, Copy, Check, Share2, Sparkles, RefreshCw, Volume2, Image as ImageIcon } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Bookmark, Copy, Check, Share2, Sparkles, RefreshCw, Volume2, Image as ImageIcon, Square as StopSquare } from 'lucide-react';
 import { getDailyVerse } from '../data/devotionals';
 import { BibleTranslation } from '../types';
 import { downloadVerseCardImage, CARD_THEMES, CardTheme } from '../utils/cardGenerator';
+import { ttsService } from '../services/ttsService';
+import { TRANSLATION_OPTIONS } from '../data/devotionals';
 
 interface DailyVerseWidgetProps {
   onSaveVerse?: (verse: { bookName: string; chapter: number; verse: number; text: string }) => void;
@@ -22,6 +24,12 @@ export const DailyVerseWidget: React.FC<DailyVerseWidgetProps> = ({
   const [copied, setCopied] = useState(false);
   const [showShareModal, setShowShareModal] = useState(false);
   const [selectedTheme, setSelectedTheme] = useState<CardTheme>(CARD_THEMES[0]);
+  const [speakingId, setSpeakingId] = useState<string | null>(null);
+
+  useEffect(() => {
+    const unsub = ttsService.subscribe((id) => setSpeakingId(id));
+    return unsub;
+  }, []);
 
   const verseData = getDailyVerse(preferredTranslation);
 
@@ -66,12 +74,13 @@ export const DailyVerseWidget: React.FC<DailyVerseWidgetProps> = ({
           <select
             value={preferredTranslation}
             onChange={(e) => onChangeTranslation(e.target.value as BibleTranslation)}
-            className="text-[11px] font-extrabold text-[#1E3A8A] bg-white/90 border border-amber-200 rounded-lg px-2 py-0.5 shadow-2xs focus:outline-none"
+            className="text-[11px] font-extrabold text-[#1E3A8A] bg-white/95 border border-amber-300 rounded-xl px-2.5 py-1 shadow-2xs focus:outline-none cursor-pointer"
           >
-            <option value="NIV">NIV</option>
-            <option value="KJV">KJV</option>
-            <option value="ESV">ESV</option>
-            <option value="WEB">WEB</option>
+            {TRANSLATION_OPTIONS.map((t) => (
+              <option key={t.id} value={t.id}>
+                {t.flag} {t.id} • {t.lang}
+              </option>
+            ))}
           </select>
         )}
       </div>
@@ -97,6 +106,32 @@ export const DailyVerseWidget: React.FC<DailyVerseWidgetProps> = ({
 
       {/* Action Buttons: Flex-Wrap Graceful Mobile Container */}
       <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 pt-2 border-t border-amber-200/60">
+        {/* Button 0: Listen Audio */}
+        <button
+          onClick={() => {
+            const textToNarrate = `Verse of the Day. ${verseData.reference}. ${verseData.text}`;
+            ttsService.toggle('daily-verse-of-the-day', textToNarrate);
+          }}
+          className={`flex-1 min-w-[75px] xs:min-w-[85px] py-2 px-2.5 sm:px-3 font-extrabold text-xs rounded-xl flex items-center justify-center gap-1.5 transition-all active:scale-95 border ${
+            speakingId === 'daily-verse-of-the-day'
+              ? 'bg-amber-600 text-white border-amber-700 animate-pulse'
+              : 'bg-white hover:bg-amber-50 text-[#1E3A8A] border-amber-200 shadow-2xs'
+          }`}
+          title={speakingId === 'daily-verse-of-the-day' ? 'Stop Audio Narration' : 'Listen to Scripture Audio'}
+        >
+          {speakingId === 'daily-verse-of-the-day' ? (
+            <>
+              <StopSquare className="w-3.5 h-3.5 fill-white text-white" />
+              <span className="truncate">Stop</span>
+            </>
+          ) : (
+            <>
+              <Volume2 className="w-3.5 h-3.5 text-[#1E3A8A]" />
+              <span className="truncate">Listen</span>
+            </>
+          )}
+        </button>
+
         {/* Button 1: Save */}
         <button
           onClick={handleSave}
